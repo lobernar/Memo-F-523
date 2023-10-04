@@ -56,6 +56,9 @@ class Node{
 
         void printKeys(){ for(int key: keys) std::cout << key << " ";
                             std::cout << std::endl;}
+
+        void printBuffer(){ for(Message msg: buffer) std::cout << msg.key << " ";
+                            std::cout << std::endl;}
         
         void setParent(Node* parentIn){ parent = parentIn;}
 
@@ -70,6 +73,29 @@ class Node{
             int i=0; 
             while(i<n && keys[i] < k) ++i;
             return i;
+        }
+
+        int whoAmI(){
+            for(int i=0; i<parent->children.size(); ++i){
+                if(parent->children[i] == this) return i;
+            }
+            return -1;
+        }
+
+        int findFlushingChild(){
+            int resArray[children.size()] = {0};
+            for(Message msg : buffer){
+                ++resArray[findChild(msg.key)];
+            }
+            int resIndex = 0;
+            int maxCount = 0;
+            for(int c = 0; c < children.size(); ++c){
+                if(resArray[c] > maxCount){
+                    maxCount = resArray[c];
+                    resIndex = c;
+                }
+            }
+            return resIndex;
         }
 
         Node* getLeftSibling(){
@@ -95,7 +121,7 @@ class Node{
             return (isLeaf() && keys.size() > B) || (!isLeaf() && keys.size() > Beps);
         }
 
-        void annihilateInsDel(){
+        void annihilateMatching(){
             for(auto it=buffer.begin(); it!=buffer.end();){
                 bool deleted = false;
                 for(auto it2=buffer.begin(); it2!=buffer.end();){
@@ -212,16 +238,13 @@ class Node{
         }
 
         void moveChild(Node* sibling, int eraseChildIndex, int insertIndex){
-            Node* child = sibling->children[eraseChildIndex];
-            int firstKey = child->keys[0];
-            int lastKey = child->keys[child->keys.size()-1];
             // Move updates concerning the moved child
-            for(auto it=sibling->buffer.begin(); it!=sibling->buffer.end();){
-                Message msg = *it;
-                if(msg.key >= firstKey && msg.key <= lastKey){
+            for(int i=0; i<sibling->buffer.size(); ++i){
+                Message msg = sibling->buffer[i];
+                if(sibling->findChild(msg.key) == eraseChildIndex){
                     buffer.push_back(msg);
-                    it = sibling->buffer.erase(it);
-                } else it++;
+                    sibling->buffer.erase(sibling->buffer.begin()+i);
+                }
             }
             children.insert(children.begin()+insertIndex, sibling->children[eraseChildIndex]);
             sibling->children[eraseChildIndex]->setParent(this);
@@ -229,6 +252,8 @@ class Node{
         }
 
         void merge(Node* sibling, int keyIndex, int childIndex, int buffIndex){
+            int keyDownIndex = std::max(whoAmI()-1, 0);
+            if(keyDownIndex == parent->keys.size()) --keyDownIndex;
             // Merging keys and children into current node
             keys.insert(keys.begin()+keyIndex, sibling->keys.begin(), sibling->keys.end());
             for(Node* child : sibling->children){
@@ -245,14 +270,12 @@ class Node{
             parent->children.erase(parent->children.begin()+mergedIndex);
 
             //Move median key in merged node
-            int keyDownIndex = parent->findChild(keys[0]);
             if(!isLeaf()) {    
-                if(keyDownIndex > parent->keys.size()-1) keyDownIndex = 0;
                 int insertIndex = findChild(parent->keys[keyDownIndex]);
                 int keyDown = parent->keys[keyDownIndex];
-                parent->keys.erase(parent->keys.begin()+keyDownIndex);
                 keys.insert(keys.begin()+insertIndex, keyDown);
-            } else parent->keys.erase(parent->keys.begin()+keyDownIndex);                    
+            }
+            parent->keys.erase(parent->keys.begin()+keyDownIndex);                    
         }
 
         void updateParent(int deletedKey){

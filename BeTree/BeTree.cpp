@@ -71,9 +71,9 @@ class BeTree{
             else{
                 if(leftSibling != curr) curr->merge(leftSibling, 0, 0, 0);
                 else curr->merge(rightSibling, curr->keys.size(), curr->children.size(), curr->buffer.size());
-                // Check buffer overflow after merge
             }
-            while(curr->buffer.size() >= B-Beps) flush(curr);
+            // Check buffer overflow
+            //while(curr->buffer.size() > B-Beps) flush(curr);
             curr = curr->parent;
         }
     }
@@ -90,7 +90,7 @@ class BeTree{
                     root = root->children[0];
                     root->setParent(NULL);
                     for(int i=1; i<root->children.size(); i++) root->children[i]->setParent(root);
-                    while(root->buffer.size() >= B-Beps) flush(root);
+                    while(root->buffer.size() > B-Beps) flush(root);
                 }
                 //printTree();
                 break;
@@ -104,6 +104,7 @@ class BeTree{
     }
 
     void flush(Node* node){
+        // Flushes O(B^(1-eps)) updates (pigeonhole principle)
         for(int i=0; i<node->buffer.size(); ++i){
             Message msg = node->buffer[i];
             int childIndex = node->findChild(msg.key);
@@ -115,6 +116,21 @@ class BeTree{
                 while(child->buffer.size() >= B-Beps) flush(child);
             }
         }
+        // int childIndex = node->findFlushingChild();
+        // Node* child = node->children[childIndex];
+        // for(int i = 0; i<node->buffer.size(); ++i){
+        //     Message msg = node->buffer[i];
+        //     if(node->findChild(msg.key) == childIndex){
+        //         node->buffer.erase(node->buffer.begin()+i);
+        //         if(child->isLeaf()) apply(msg, child);
+        //         else {
+        //             child->buffer.push_back(msg);
+        //         }
+        //     }
+        // }
+
+        // // Flush child if needed (can cause flushing cascades)
+        // while(child->buffer.size() > B-Beps) flush(child);
     }
 
     void insertUpdate(int key, int op){

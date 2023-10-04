@@ -64,7 +64,15 @@ class Node{
 
         bool isLeaf(){ return children.empty();}
 
-        bool isMicroLeaf() {return children[0]->isLeaf();} // TODO: swap isLeaf and isMicroLeaf
+        //bool isMicroLeaf() {return children[0]->isLeaf();} // TODO: swap isLeaf and isMicroLeaf
+
+        int getLeafSize(){
+            int res = keys.size();
+            for(Node* micLeaf : children){
+                res += micLeaf->keys.size();
+            }
+            return res;
+        }
 
         void insertChild(Node* child, int index) {children.insert(children.begin()+index, child);}
 
@@ -77,6 +85,13 @@ class Node{
             int i=0; 
             while(i<n && keys[i] < k) ++i;
             return i;
+        }
+
+        int whoAmI(){
+            for(int i=0; i<parent->children.size(); ++i){
+                if(parent->children[i] == this) return i;
+            }
+            return -1;
         }
 
         int findFlushingChild(){
@@ -239,6 +254,8 @@ class Node{
         }
 
         void merge(Node* sibling, int keyIndex, int childIndex, int buffIndex){
+            int keyDownIndex = std::max(whoAmI()-1, 0);
+            if(keyDownIndex == parent->keys.size()) --keyDownIndex;
             // Merging keys and children into current node
             keys.insert(keys.begin()+keyIndex, sibling->keys.begin(), sibling->keys.end());
             for(Node* child : sibling->children){
@@ -255,14 +272,12 @@ class Node{
             parent->children.erase(parent->children.begin()+mergedIndex);
 
             //Move median key in merged node
-            int keyDownIndex = parent->findChild(keys[0]);
             if(!isLeaf()) {    
-                if(keyDownIndex > parent->keys.size()-1) keyDownIndex = 0;
                 int insertIndex = findChild(parent->keys[keyDownIndex]);
                 int keyDown = parent->keys[keyDownIndex];
-                parent->keys.erase(parent->keys.begin()+keyDownIndex);
                 keys.insert(keys.begin()+insertIndex, keyDown);
-            } else parent->keys.erase(parent->keys.begin()+keyDownIndex);                    
+            }
+            parent->keys.erase(parent->keys.begin()+keyDownIndex);                    
         }
 
         void updateParent(int deletedKey){

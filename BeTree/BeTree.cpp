@@ -72,6 +72,12 @@ class BeTree{
                 if(leftSibling != curr) curr->merge(leftSibling, 0, 0, 0);
                 else curr->merge(rightSibling, curr->keys.size(), curr->children.size(), curr->buffer.size());
             }
+
+            // Update parent key if needed
+            for(int i = 0; i<curr->keys.size(); ++i){
+                if(!curr->isLeaf() && curr->children[0]->isLeaf() && curr->keys[i] != curr->children[i]->keys.back()) 
+                                            curr->keys[i] = curr->children[i]->keys.back();
+            }
             // Check buffer overflow
             //while(curr->buffer.size() > B-Beps) flush(curr);
             curr = curr->parent;

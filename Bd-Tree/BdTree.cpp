@@ -81,7 +81,12 @@ class BeTree{
                 else curr->merge(rightSibling, curr->keys.size(), curr->children.size(), curr->buffer.size());
                 // Check buffer overflow after merge
             }
-            while(curr->buffer.size() >= B/Bdelta) flush(curr);
+            // Update parent key if needed
+            for(int i = 0; i<curr->keys.size(); ++i){
+                if(!curr->isLeaf() && curr->children[0]->isLeaf() && curr->keys[i] != curr->children[i]->keys.back()) 
+                                            curr->keys[i] = curr->children[i]->keys.back();
+            }
+            //while(curr->buffer.size() >= B/Bdelta) flush(curr);
             curr = curr->parent;
         }
     }
@@ -143,7 +148,7 @@ class BeTree{
             if(root->isLeaf()) apply(msg, root); // If root is a leaf -> instantly apply update
             else{ // If root is not a leaf -> add msg to its buffer
                 root->buffer.push_back(msg);
-                if(root->buffer.size() >= B-Bdelta) flush(root);            
+                if(root->buffer.size() >= B/Bdelta) flush(root);            
             }           
         }
     }
@@ -188,20 +193,33 @@ class BeTree{
             while(!n2->isLeaf() && n2->buffer.size() > B/Bdelta){
                 n3 = n2;
                 // Propagate flush of split/merged node down
-                int flushChild = n3->findFlushingChild();
-                Node* n4 = n3->children[flushChild];
-                flush(n3);
-                n3 = n4;
+                while(n3->buffer.size() > B/Bdelta){
+                    int flushChild = n3->findFlushingChild();
+                    Node* n4 = n3->children[flushChild];
+                    flush(n3);
+                    n3 = n4;
+                }
+                // Update auxiliary information
+                while(n3){
+                    //TODO
+                    n3 = n3->parent;
+                }
             }
-            while(n3){
-                //TODO: update auxiliary info
-                n3 = n3->parent;
-            }
-
-            
-
         }
 
+        // Flush from root
+        Node* n5 = root;
+        while(n5->buffer.size() > B/Bdelta){
+        int flushChild = n5->findFlushingChild();
+        Node* n6 = n5->children[flushChild];
+        flush(n5);
+        n5 = n6;
+        }
+        // Update auxiliary information
+        while(n5){
+            //TODO
+            n5 = n5->parent;
+        }
         splitPhase = !splitPhase;
         return step;
     }

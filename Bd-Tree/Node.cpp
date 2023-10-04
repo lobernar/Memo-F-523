@@ -237,13 +237,11 @@ class Node{
         }
 
         void moveChild(Node* sibling, int eraseChildIndex, int insertIndex){
-            Node* child = sibling->children[eraseChildIndex];
-            int firstKey = child->keys[0];
-            int lastKey = child->keys[child->keys.size()-1];
             // Move updates concerning the moved child
+            Node* child = sibling->children[eraseChildIndex];
             for(auto it=sibling->buffer.begin(); it!=sibling->buffer.end();){
                 Message msg = *it;
-                if(msg.key >= firstKey && msg.key <= lastKey){
+                if(msg.key >= child->keys[0] && msg.key <= child->keys[child->keys.size()-1]){
                     buffer.push_back(msg);
                     it = sibling->buffer.erase(it);
                 } else it++;

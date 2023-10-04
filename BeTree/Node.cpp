@@ -239,12 +239,13 @@ class Node{
 
         void moveChild(Node* sibling, int eraseChildIndex, int insertIndex){
             // Move updates concerning the moved child
-            for(int i=0; i<sibling->buffer.size(); ++i){
-                Message msg = sibling->buffer[i];
-                if(sibling->findChild(msg.key) == eraseChildIndex){
+            Node* child = sibling->children[eraseChildIndex];
+            for(auto it=sibling->buffer.begin(); it!=sibling->buffer.end();){
+                Message msg = *it;
+                if(msg.key >= child->keys[0] && msg.key <= child->keys[child->keys.size()-1]){
                     buffer.push_back(msg);
-                    sibling->buffer.erase(sibling->buffer.begin()+i);
-                }
+                    it = sibling->buffer.erase(it);
+                } else it++;
             }
             children.insert(children.begin()+insertIndex, sibling->children[eraseChildIndex]);
             sibling->children[eraseChildIndex]->setParent(this);

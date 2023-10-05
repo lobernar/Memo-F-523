@@ -96,7 +96,7 @@ void testCase5(){
 
 void testCase6(){
     /*
-    Tests predecessor query
+    TODO: Tests predecessor query
     */
     BeTree t = BeTree(9, EPS);
     for(int i=1; i<=1500; i++) t.insertUpdate(i, INSERT);
@@ -107,7 +107,7 @@ void testCase6(){
 
 void testCase7(){
     /*
-    TODO: Tests range query
+    Tests range query
     */
     BeTree t = BeTree(9, EPS);
     for(int i=1; i<=1500; i++) t.insertUpdate(i, INSERT);
@@ -133,7 +133,7 @@ int main(){
     printf("\n------------------------------TEST CASE 6--------------------------\n\n");
     //testCase6();
     printf("\n------------------------------TEST CASE 7--------------------------\n\n");
-    //testCase7();
+    testCase7();
 
 
     return 0;

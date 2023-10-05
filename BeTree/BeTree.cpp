@@ -78,7 +78,7 @@ class BeTree{
                                             curr->keys[i] = curr->children[i]->keys.back();
             }
             // Check buffer overflow
-            //while(curr->buffer.size() > B-Beps) flush(curr);
+            while(curr->buffer.size() > B-Beps) flush(curr);
             curr = curr->parent;
         }
     }
@@ -118,10 +118,10 @@ class BeTree{
                 it = node->buffer.erase(it);
                 if(child->isLeaf()) {
                     apply(msg, child);
-                    it = node->buffer.begin(); // Need to reset iterator
+                    // Need to update variables
+                    it = node->buffer.begin(); 
                     childIndex = node->findFlushingChild();
                     child = node->children[childIndex];
-                    //printTree();
                 } else child->buffer.push_back(msg);
             } else ++it;
         }
@@ -175,7 +175,6 @@ class BeTree{
                     }
                     curr = curr->children[index-1];
                 }
-
             }
             for(Message msg : pending) apply(msg, curr); // apply pending updates TODO: annihilate insert-delete operations
 
@@ -185,14 +184,46 @@ class BeTree{
     }
 
     std::vector<int> range(int x, int y){
-        std::vector<int> predecessors{};
-        int pred = predecessor(y+1);
-        while(pred >= x){
-            predecessors.insert(predecessors.begin(), pred);
-            pred = predecessor(pred);
+        std::vector<int> res{};
+        Node* curr = root;
+        while(!curr->isLeaf()){
+            // Check buffer for updates to push down
+            for(auto it = curr->buffer.begin(); it != curr->buffer.end();){
+                Message msg = *it;
+                if(msg.key >= x && msg.key <= y){ // Push update down appropriate node
+                    int pushIndex = curr->findChild(msg.key);
+                    curr->children[pushIndex]->buffer.push_back(msg);
+                    it = curr->buffer.erase(it);
+                    curr->children[pushIndex]->annihilateMatching();
+                    //TODO: Flush? 
+                } else ++it;
+            }
+            int nextIndex = curr->findChild(x);
+            curr = curr->children[nextIndex];
+        }
+        // Will have reached the leaf containing x (if present)
+        bool finished = false;
+        while(!finished && curr->parent){
+            if(curr->isLeaf()){ // Add keys to solution if currently in leaf
+                for(int key : curr->keys){
+                    if(key >= x && key <= y) res.push_back(key);
+                    else if(key > y) finished = true;
+                }
+                curr = curr->parent;
+            } else {
+                bool down = false;
+                for(int i = 0; i<curr->children.size(); ++i){
+                    if(curr->children[i]->keys[0] > res[res.size()-1] && curr->children[i]->keys[0] <=y){
+                        down = true;
+                        curr = curr->children[i];
+                        break;
+                    }
+                }
+                if(!down) curr = curr->parent;
+            }
         }
 
-        return predecessors;
+        return res;
     }
 
 };

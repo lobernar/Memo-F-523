@@ -122,15 +122,16 @@ class Node{
         }
 
         void annihilateMatching(){
-            for(auto it=buffer.begin(); it!=buffer.end();){
-                bool deleted = false;
-                for(auto it2=buffer.begin(); it2!=buffer.end();){
-                    if(it2->key == it->key && it2->op != it->op){
-                        it2 = buffer.erase(it2);
-                        deleted = true;
-                    } else it2++;
+            for(auto msg=buffer.begin(); msg != buffer.end();){
+                bool found = false;
+                for(auto msg2 = msg+1; msg2 != buffer.end();){
+                    if(msg2->key == msg->key && msg2->op != msg->op){
+                        msg2 = buffer.erase(msg2);
+                        found = true;
+                        break;
+                    } else msg2++;
                 }
-                it = (deleted) ? buffer.erase(it) : it++;
+                msg = (found) ? buffer.erase(msg) : ++msg;
             }
         }
 

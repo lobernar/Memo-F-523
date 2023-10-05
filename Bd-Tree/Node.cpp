@@ -133,6 +133,20 @@ class Node{
             return (isLeaf() && keys.size() >= 5*B*log2B(N, B)) || (!isLeaf() && keys.size() >= Bdelta);
         }
 
+        void annihilateMatching(){
+            for(auto msg=buffer.begin(); msg != buffer.end();){
+                bool found = false;
+                for(auto msg2 = msg+1; msg2 != buffer.end();){
+                    if(msg2->key == msg->key && msg2->op != msg->op){
+                        msg2 = buffer.erase(msg2);
+                        found = true;
+                        break;
+                    } else msg2++;
+                }
+                msg = (found) ? buffer.erase(msg) : ++msg;
+            }
+        }
+
     
         /*
          *------------------------------------------------------------------------

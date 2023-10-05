@@ -2,8 +2,7 @@
 
 #define DELETE 0
 #define INSERT 1
-#define UPDATE 2
-#define BLANK 3
+#define BLANK 2
 
 class BeTree{
     public:

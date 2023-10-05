@@ -2,8 +2,7 @@
 
 #define DELETE 0
 #define INSERT 1
-#define UPDATE 2
-#define BLANK 3
+#define BLANK 2
 
 class BeTree{
     public:
@@ -119,6 +118,7 @@ class BeTree{
             if(child->isLeaf()) apply(msg, child); // Next child is a leaf -> instantly apply update
             else {
                 child->buffer.push_back(msg);
+                child->annihilateMatching();
                 while(child->buffer.size() >= B-Beps) flush(child);
             }
         }

@@ -134,7 +134,7 @@ class Node{
         }
 
         void annihilateMatching(){
-            for(auto msg=buffer.begin(); msg != buffer.end();){
+            for(auto msg = buffer.begin(); msg != buffer.end();){
                 bool found = false;
                 for(auto msg2 = msg+1; msg2 != buffer.end();){
                     if(msg2->key == msg->key && msg2->op != msg->op){

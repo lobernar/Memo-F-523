@@ -109,34 +109,25 @@ class BeTree{
     }
 
     void flush(Node* node){
-        // Flushes O(B^(1-eps)) updates (pigeonhole principle)
-        for(int i=0; i<node->buffer.size(); ++i){
-            Message msg = node->buffer[i];
-            int childIndex = node->findChild(msg.key);
-            Node* child = node->children[childIndex];
-            node->buffer.erase(node->buffer.begin()+i);
-            if(child->isLeaf()) apply(msg, child); // Next child is a leaf -> instantly apply update
-            else {
-                child->buffer.push_back(msg);
-                child->annihilateMatching();
-                while(child->buffer.size() >= B-Beps) flush(child);
-            }
+        // Flushes at least O(B^(1-eps)) updates (pigeonhole principle)
+        int childIndex = node->findFlushingChild();
+        Node* child = node->children[childIndex];
+        for(auto it = node->buffer.begin(); it != node->buffer.end();){
+            if(node->findChild(it->key) == childIndex){
+                Message msg = *it;
+                it = node->buffer.erase(it);
+                if(child->isLeaf()) {
+                    apply(msg, child);
+                    it = node->buffer.begin(); // Need to reset iterator
+                    childIndex = node->findFlushingChild();
+                    child = node->children[childIndex];
+                    //printTree();
+                } else child->buffer.push_back(msg);
+            } else ++it;
         }
-        // int childIndex = node->findFlushingChild();
-        // Node* child = node->children[childIndex];
-        // for(int i = 0; i<node->buffer.size(); ++i){
-        //     Message msg = node->buffer[i];
-        //     if(node->findChild(msg.key) == childIndex){
-        //         node->buffer.erase(node->buffer.begin()+i);
-        //         if(child->isLeaf()) apply(msg, child);
-        //         else {
-        //             child->buffer.push_back(msg);
-        //         }
-        //     }
-        // }
-
-        // // Flush child if needed (can cause flushing cascades)
-        // while(child->buffer.size() > B-Beps) flush(child);
+        if(!child->isLeaf()) child->annihilateMatching(); // Annihilate matching ins/del operations
+        // Flush child if needed (can cause flushing cascades)
+        while(child->buffer.size() > B-Beps) flush(child);
     }
 
     void insertUpdate(int key, int op){
@@ -148,7 +139,6 @@ class BeTree{
             if(initBuff.size() >= B) {
                 root = new Node(NULL, std::vector<Node*>{}, std::vector<int>{});
                 for(Message msg : initBuff) apply(msg, root);
-                std::cout << "Flushed init buffer\n";
                 initBuff.clear();
             }
         }
@@ -157,7 +147,7 @@ class BeTree{
             if(root->isLeaf()) apply(msg, root); // If root is a leaf -> instantly apply update
             else{ // If root is not a leaf -> add msg to its buffer
                 root->buffer.push_back(msg);
-                if(root->buffer.size() >= B-Beps) flush(root);            
+                if(root->buffer.size() > B-Beps) flush(root);            
             }           
         }
     }

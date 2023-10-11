@@ -75,7 +75,7 @@ class Node{
             return i;
         }
 
-        int whoAmI(){
+        int myIndex(){
             for(int i=0; i<parent->children.size(); ++i){
                 if(parent->children[i] == this) return i;
             }
@@ -134,28 +134,6 @@ class Node{
                 msg = (found) ? buffer.erase(msg) : ++msg;
             }
         }
-
-    
-        /*
-         *------------------------------------------------------------------------
-                                    QUERIES
-         *------------------------------------------------------------------------
-        */
-
-        Node* search(int k){
-            int i=0;
-            int n=keys.size();
-            while(i<n && keys[i]<k) ++i;
-            // Is a leaf but doesn't contain desired key
-            if(isLeaf()) return NULL;
-            // Key was found
-            else if(keys[i] == k) return this;
-            // Key not found but node is not a leaf -> recurse on appropriate child 
-            // DISK-READ
-            else if(children[i] != NULL) return children[i]->search(k);
-            else return NULL;
-        }
-
 
         /*
          *------------------------------------------------------------------------
@@ -254,7 +232,7 @@ class Node{
         }
 
         void merge(Node* sibling, int keyIndex, int childIndex, int buffIndex){
-            int keyDownIndex = std::max(whoAmI()-1, 0);
+            int keyDownIndex = std::max(myIndex()-1, 0);
             if(keyDownIndex == parent->keys.size()) --keyDownIndex;
             // Merging keys and children into current node
             keys.insert(keys.begin()+keyIndex, sibling->keys.begin(), sibling->keys.end());

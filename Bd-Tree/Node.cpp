@@ -21,11 +21,15 @@ class Node{
         Node(Node* parentIn, std::vector<Node*> childrenIn, std::vector<int> keysIn): parent(parentIn), children(childrenIn), keys(keysIn){
             //DISK-WRITE
             buffer = std::vector<Message>{};
+            maxSize = 0;
+            minSize = INT64_MAX;
         }
         
         Node(Node* parentIn, std::vector<Node*> childrenIn, std::vector<int> keysIn, std::vector<Message> buffIn): parent(parentIn), 
             children(childrenIn), keys(keysIn), buffer(buffIn){
             //DISK-WRITE
+            maxSize = 0;
+            minSize = INT64_MAX;
         }
         
         /*
@@ -48,7 +52,7 @@ class Node{
             std::cout << "]" << std::endl;
 
             // enter the next tree level
-            if(!isLeaf()){
+            if(!isMicroLeaf()){
                 children[0]->printBT(prefix + (isLeft ? "│   " : "    "), true);
                 for(int i=1; i<children.size(); i++){
                     children[i]->printBT(prefix + (isLeft ? "│   " : "    "), false);
@@ -62,9 +66,14 @@ class Node{
         
         void setParent(Node* parentIn){ parent = parentIn;}
 
-        bool isLeaf(){ return children.empty();}
+        bool isMicroLeaf(){ return children.empty();}
 
-        //bool isMicroLeaf() {return children[0]->isLeaf();} // TODO: swap isLeaf and isMicroLeaf
+        bool isMicroRoot() {
+            if(!isMicroLeaf()){ // Avoid seg fault
+                return children[0]->isMicroLeaf();
+            }
+            return false;
+        }
 
         int getLeafSize(){
             int res = keys.size();
@@ -80,6 +89,8 @@ class Node{
 
         double log2B(int a, int B){ return pow(log2(a), 2) / pow(log2(B), 2);}
 
+        double logB(int a, int B) {return log2(a) / log2(B);}
+
         int findChild(int k){
             int n = keys.size();
             int i=0; 
@@ -87,7 +98,7 @@ class Node{
             return i;
         }
 
-        int whoAmI(){
+        int myIndex(){
             for(int i=0; i<parent->children.size(); ++i){
                 if(parent->children[i] == this) return i;
             }
@@ -123,14 +134,15 @@ class Node{
         }
 
         bool bigEnough(int B, int Bdelta, int N) {
-            return (isLeaf() && keys.size() >= ceil((double)B*log2B(N, B))) || (!isLeaf() && keys.size() >= ceil((double) Bdelta/2));
+            return (isMicroLeaf() && keys.size() >= ceil((double)B*log2B(N, B))) || (!isMicroLeaf() && keys.size() >= ceil((double) Bdelta/2));
         }
         bool tooSmall(int B, int Bdelta, int N){
-            return (isLeaf() & keys.size() <  ceil((double) B*log2B(N, B))) || (!isLeaf() && keys.size() <  ceil((double) Bdelta/2));
+            return (isMicroLeaf() & keys.size() <  ceil((double) B*log2B(N, B))) || (!isMicroLeaf() && keys.size() <  ceil((double) Bdelta/2));
         }
         
         bool tooBig(int B, int Bdelta, int N){
-            return (isLeaf() && keys.size() >= 5*B*log2B(N, B)) || (!isLeaf() && keys.size() >= Bdelta);
+            return (isMicroRoot() && keys.size() >= ceil((double) logB(N, B))) || (!isMicroRoot() && !isMicroLeaf() && keys.size() >= Bdelta) || 
+            (isMicroLeaf() && keys.size() >= ceil((double) B*logB(N, B)));
         }
 
         void annihilateMatching(){
@@ -147,27 +159,20 @@ class Node{
             }
         }
 
-    
-        /*
-         *------------------------------------------------------------------------
-                                    QUERIES
-         *------------------------------------------------------------------------
-        */
-
-        Node* search(int k){
-            int i=0;
-            int n=keys.size();
-            while(i<n && keys[i]<k) ++i;
-            // Is a leaf but doesn't contain desired key
-            if(isLeaf()) return NULL;
-            // Key was found
-            else if(keys[i] == k) return this;
-            // Key not found but node is not a leaf -> recurse on appropriate child 
-            // DISK-READ
-            else if(children[i] != NULL) return children[i]->search(k);
-            else return NULL;
+        void updateAux(){
+            for(int c=0; c<children.size(); ++c){
+                int bigSize = (children[c]->isMicroRoot()) ? children[c]->getLeafSize() : children[c]->maxSize;
+                int smallSize = (children[c]->isMicroRoot()) ? children[c]->getLeafSize() : children[c]->minSize;
+                if(bigSize > maxSize){
+                    maxSize = bigSize;
+                    maxSizeIndex = c;
+                }
+                if(smallSize < minSize){
+                    minSize = smallSize;
+                    minSizeIndex = c;
+                }
+            }
         }
-
 
         /*
          *------------------------------------------------------------------------
@@ -175,37 +180,41 @@ class Node{
          *------------------------------------------------------------------------
         */
 
-        void split(int half){
+        void split(int half, int step){
             // Idea: keep "this" as new left node and only create new right node + delete appropriate children/keys from "this"
             int keyUp = keys[half];
             std::vector<Node*> rightChildren = {};
             std::vector<int> rightKeys = {keys.begin()+half+1, keys.end()};
-            // Push key to parent (or create new root)
-            if(parent != NULL){
-                int parentIndex = parent->findChild(keyUp);
-                parent->insertKey(keyUp, parentIndex);
-            } 
-            else parent = new Node(NULL, {this}, {keyUp}); 
-            // Handle children
-            if(!isLeaf()) {
-                rightChildren = {children.begin()+half+1, children.end()};
-                children.erase(children.begin()+half+1, children.end()); // Delete from "new left" node
+            if(step == 1){
+                // Push key to parent (or create new root)
+                if(parent != NULL){
+                    int parentIndex = parent->findChild(keyUp);
+                    parent->insertKey(keyUp, parentIndex);
+                } 
+                else parent = new Node(NULL, {this}, {keyUp}); 
+            } else if(step == 2){
+                // Handle children
+                if(!isMicroLeaf()) {
+                    rightChildren = {children.begin()+half+1, children.end()};
+                    children.erase(children.begin()+half+1, children.end()); // Delete from "new left" node
+                }
+                keys.erase(keys.begin()+half+isMicroLeaf(), keys.end()); // Keep key if node is micro-leaf (since we use duplicates)
+                Node* newRight = new Node(parent, rightChildren, rightKeys);
+                // Update children's parent
+                for(Node* child : newRight->children){
+                    if(child != NULL) child->setParent(newRight);
+                }
+                // Split buffer
+                for(std::vector<Message>::iterator iter = buffer.begin(); iter != buffer.end();){
+                    if(iter->key > keyUp){
+                        newRight->buffer.push_back(*iter);
+                        iter = buffer.erase(iter);
+                    } else ++iter;
+                }
+                int rightIndex = parent->findChild(newRight->keys[0]);
+                parent->insertChild(newRight, rightIndex);
             }
-            keys.erase(keys.begin()+half+isLeaf(), keys.end()); // Keep key if node is leaf (since we use duplicates)
-            Node* newRight = new Node(parent, rightChildren, rightKeys);
-            // Update children's parent
-            for(Node* child : newRight->children){
-                if(child != NULL) child->setParent(newRight);
-            }
-            // Split buffer
-            for(std::vector<Message>::iterator iter = buffer.begin(); iter != buffer.end();){
-                if(iter->key > keyUp){
-                    newRight->buffer.push_back(*iter);
-                    iter = buffer.erase(iter);
-                } else ++iter;
-            }
-            int rightIndex = parent->findChild(newRight->keys[0]);
-            parent->insertChild(newRight, rightIndex);
+
         }
 
         /*
@@ -213,60 +222,8 @@ class Node{
                                     DELETION
          *------------------------------------------------------------------------
         */
-
-        void borrowLeft(Node* sibling){
-            // Move key from parent down in node
-            int keyDownIndex = parent->findChild(sibling->keys[0]);
-            int keyDown = parent->keys[keyDownIndex];
-            keys.insert(keys.begin(), keyDown);
-            parent->keys.erase(parent->keys.begin()+keyDownIndex);
-
-            // Move key from sibling up in parent
-            if(isLeaf()) sibling->keys.pop_back();
-            int keyUp = sibling->keys.back();
-            int insertIndex = parent->findChild(keyUp);
-            parent->keys.insert(parent->keys.begin()+insertIndex, keyUp);
-            if(!isLeaf()) sibling->keys.pop_back();
-
-            // Handle children
-            if(!isLeaf()) moveChild(sibling, sibling->children.size()-1, 0);
-        }
-
-        void borrowRight(Node* sibling){
-            // Move key from sibling to parent
-            int keyUp = sibling->keys[0];
-            sibling->keys.erase(sibling->keys.begin());
-            int insertIndex = parent->findChild(keys[0])+1;
-            parent->keys.insert(parent->keys.begin()+insertIndex, keyUp);
-
-            // Move keyUp down in node
-            int keyDownIndex = (isLeaf()) ? insertIndex : parent->findChild(keys[0]);
-            int keyDown = parent->keys[keyDownIndex];
-            parent->keys.erase(parent->keys.begin()+keyDownIndex-isLeaf());
-            insertIndex = findChild(keyDown);
-            keys.insert(keys.begin()+insertIndex, keyDown);
-
-            // Handle children
-            if(!isLeaf()) moveChild(sibling, 0, children.size());
-        }
-
-        void moveChild(Node* sibling, int eraseChildIndex, int insertIndex){
-            // Move updates concerning the moved child
-            Node* child = sibling->children[eraseChildIndex];
-            for(auto it=sibling->buffer.begin(); it!=sibling->buffer.end();){
-                Message msg = *it;
-                if(msg.key >= child->keys[0] && msg.key <= child->keys[child->keys.size()-1]){
-                    buffer.push_back(msg);
-                    it = sibling->buffer.erase(it);
-                } else it++;
-            }
-            children.insert(children.begin()+insertIndex, sibling->children[eraseChildIndex]);
-            sibling->children[eraseChildIndex]->setParent(this);
-            sibling->children.erase(sibling->children.begin()+eraseChildIndex);
-        }
-
         void merge(Node* sibling, int keyIndex, int childIndex, int buffIndex){
-            int keyDownIndex = std::max(whoAmI()-1, 0);
+            int keyDownIndex = std::max(myIndex()-1, 0);
             if(keyDownIndex == parent->keys.size()) --keyDownIndex;
             // Merging keys and children into current node
             keys.insert(keys.begin()+keyIndex, sibling->keys.begin(), sibling->keys.end());
@@ -284,17 +241,11 @@ class Node{
             parent->children.erase(parent->children.begin()+mergedIndex);
 
             //Move median key in merged node
-            if(!isLeaf()) {    
+            if(!isMicroLeaf()) {    
                 int insertIndex = findChild(parent->keys[keyDownIndex]);
                 int keyDown = parent->keys[keyDownIndex];
                 keys.insert(keys.begin()+insertIndex, keyDown);
             }
             parent->keys.erase(parent->keys.begin()+keyDownIndex);                    
-        }
-
-        void updateParent(int deletedKey){
-            int lastKey = keys.back();
-            int parentIndex = parent->findChild(deletedKey);
-            if(parent->keys[parentIndex] == deletedKey) parent->keys[parentIndex] = lastKey;
         }
     };

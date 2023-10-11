@@ -89,23 +89,13 @@ void testCase5(){
     */
     BeTree t = BeTree(16, EPS);
     for(int i=1; i<=150; i++) t.insertUpdate(i, INSERT);
+    t.printTree();
     for(int i=150; i>0; i--) t.insertUpdate(i, DELETE);
 
     t.printTree();
 }
 
 void testCase6(){
-    /*
-    TODO: Tests predecessor query
-    */
-    BeTree t = BeTree(9, EPS);
-    for(int i=1; i<=1500; i++) t.insertUpdate(i, INSERT);
-    //t.printTree();
-    int pred = 921;
-    printf("Predecessor of %i: %i\n", pred, t.predecessor(pred));
-}
-
-void testCase7(){
     /*
     Tests range query
     */
@@ -131,9 +121,7 @@ int main(){
     printf("\n------------------------------TEST CASE 5--------------------------\n\n");
     testCase5();
     printf("\n------------------------------TEST CASE 6--------------------------\n\n");
-    //testCase6();
-    printf("\n------------------------------TEST CASE 7--------------------------\n\n");
-    testCase7();
+    testCase6();
 
 
     return 0;

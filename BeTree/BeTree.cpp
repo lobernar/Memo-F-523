@@ -23,27 +23,21 @@ class BeTree{
         if(root != NULL) root->printBT("", false);
     }
 
-    Node* search(int k){
-        if(root == NULL){
-            std::cout << "The tree is empty" << std::endl;
-            return NULL;
-        }
-        return root->search(k);
-    }
-
-    void insert(Node* node, int key){
+    void insert(Node* node, int key, int blockTransfers = 1){
         int index = node->findChild(key);
         node->insertKey(key, index);
+        ++blockTransfers; // DISK-WRITE
         Node* curr = node;
         // Check if node needs to be split
         while(curr && curr->tooBig(B, Beps)){
             int half = curr->isLeaf() ? B/2 : Beps/2;
             curr->split(half);
             curr = curr->parent;
+            blockTransfers = blockTransfers + 2;
         }
     }
 
-    void remove(Node* node, int key){
+    void remove(Node* node, int key, int blockTransfers = 1){
         int index = node->findChild(key);
         // Key not in tree
         if(node->keys[index] != key){
@@ -58,6 +52,7 @@ class BeTree{
         while(curr && curr->tooSmall(B, Beps) && curr->parent){
             Node* leftSibling = curr->getLeftSibling(); //DISK READ
             Node* rightSibling = curr->getRightSibling(); //DISK READ
+            ++blockTransfers;
             // Borror from left sibling
             if(leftSibling != curr && leftSibling && leftSibling->bigEnough(B, Beps)){
                 curr->borrowLeft(leftSibling);

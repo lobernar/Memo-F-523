@@ -100,7 +100,7 @@ void testCase6(){
 
 void testCase7(){
     BTree t = BTree(10);
-    for(int i=100000; i>1; --i) t.insert(i);
+    for(int i=1500; i>1; --i) t.insert(i);
     t.printTree();
     t.remove(3);
     t.printTree();

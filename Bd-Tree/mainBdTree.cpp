@@ -1,13 +1,13 @@
 #include "BdTree.cpp"
 #define DELTA (0.25)
-#define N (pow(10, 6))
 
 void testCase1(){
     /*
     Tests insertion
     */
-    BeTree t = BeTree(10, DELTA, N);
-    for(int i=1; i<=500; i++) t.insertUpdate(i, INSERT);
+    int N = pow(10, 3);
+    BeTree t = BeTree(20, DELTA, N);
+    for(int i=1; i<=1000; i++) t.insertUpdate(i, INSERT);
     t.printTree();
 }
 

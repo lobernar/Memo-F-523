@@ -1,9 +1,5 @@
 #include "Node.cpp"
 
-#define DELETE 0
-#define INSERT 1
-#define BLANK 2
-
 class BeTree{
     public:
     unsigned B;
@@ -11,13 +7,20 @@ class BeTree{
     unsigned Bdelta;
     Node* root;
     std::vector<Message> initBuff;
+    unsigned blockTransfers;
     int N; // Number of elements in the tree
     int Nestimate;
     int Nold;
     int leafSize;
-    unsigned nbrUpdates;
-    unsigned currStep;
+    int ci;
+    unsigned updatesCounter;
+    unsigned currStep, splitMergeStep;
     bool splitPhase;
+    bool mergeLeft;
+    int flushChildIndex;
+    Node* newRight;
+    Node* mergeSibling;
+    Node* tmpParent;
     Node* n1;
     Node* n2;
     Node* n3;
@@ -27,19 +30,32 @@ class BeTree{
 
     BeTree(unsigned BIn, float deltaIn, int N): B(BIn), delta(deltaIn), Nestimate(N) {
         root = NULL;
+        blockTransfers = 0;
         N = 0;
         Nold = 0;
-        nbrUpdates = 0;
+        ci = 1;
+        updatesCounter = 0;
         Bdelta = std::floor(pow(B, delta));
-        leafSize = logB(Nestimate);
+        leafSize = B*logB(Nestimate);
         currStep = 0;
-        splitPhase = true;
+        splitMergeStep = 1;
+        splitPhase = true;  
         root = new Node(NULL, {}, {});
+        initTree();
+        printTree();
         n1 = root;
         std::cout << "B^d: " << Bdelta << std::endl;
         std::cout << "B - B^d: " << B - Bdelta << std::endl;
         printf("logB(N) = %i\n", leafSize);
-        printf("B^1-2d / logBN = %i\n", (B/pow(Bdelta,2)) / leafSize);
+        printf("B/B^d = %i\n", B/Bdelta);
+        printf("B^1-2d / logBN = %i\n", (B/Bdelta*Bdelta) / leafSize);
+    }
+
+    void initTree(){
+        Node* microRoot = new Node(root, {}, {});
+        Node* microLeaf = new Node(microRoot, {}, {});
+        microRoot->children.push_back(microLeaf);
+        root->children.push_back(microRoot);
     }
 
     void printTree(){
@@ -50,9 +66,24 @@ class BeTree{
 
     double logB(int a) {return log2(a)/log2(B);}
 
+    void fixRoot(){
+        if(root->parent != NULL) root = root->parent;
+        else if(root->keys.size()==0){
+            root->children[0]->buffer.insert(root->children[0]->buffer.begin(), root->buffer.begin(), root->buffer.end());
+            root->buffer.clear();
+            root = root->children[0];
+            root->setParent(NULL);
+            for(int i=1; i<root->children.size(); i++) root->children[i]->setParent(root);
+        }
+    }
+
     void insert(Node* node, int key){
         int index = node->findChild(key);
         node->insertKey(key, index);
+        // Only micro-leafs call this method
+        if(node->keys.size() >= B*logB(Nestimate)) {
+            node->split();
+        }
         ++N;
     }
 
@@ -79,9 +110,7 @@ class BeTree{
                     root = root->children[0];
                     root->setParent(NULL);
                     for(int i=1; i<root->children.size(); i++) root->children[i]->setParent(root);
-                    while(root->buffer.size() > B/Bdelta) flush(root);
                 }
-                //printTree();
                 break;
             case INSERT: 
                 insert(node, msg.key);
@@ -105,199 +134,124 @@ class BeTree{
             } else ++it;
         }
         if(!child->isMicroLeaf()) child->annihilateMatching(); // Annihilate matching ins/del operations
+        if(child->isMicroRoot() && child->buffer.size() > (B/Bdelta)*logB(Nestimate)) {
+            flush(child);
+            //printTree();
+        }
     }
 
     void insertUpdate(int key, int op){
         Message msg{key, op};
-        if(root->isMicroLeaf()) apply(msg, root);
-        else root->buffer.push_back(msg);
-        ++nbrUpdates;
-        if(nbrUpdates == ((B/pow(Bdelta,2)) / leafSize)){
-            nbrUpdates = 0; // Reset counter
+        root->buffer.push_back(msg);
+        if(root->keys.size() == 0 && root->buffer.size() > B/Bdelta){
+            flush(root);
+            printf("Flushing root buffer\n");
+        } 
+        ++updatesCounter;
+        if(updatesCounter == ceil((B/(Bdelta*Bdelta)) / (ci*pow(logB(Nestimate), 3)))){
+            updatesCounter = 0; // Reset counter
+            //printTree();
             continueCycle();
         }
     }
 
     void continueCycle(){
-        switch (currStep) {
-        case 0: // Move n1 to micro-leaf
-            findMicroLeaf();
-            printf("Step1\n");
-            break;
-        case 1: // Start split/merge of n1
-            printf("Starting split/merge\n");
-            if(splitPhase && n1->keys.size() >= 4*B*pow(leafSize, 2)) n1->split(n1->keys.size()/2, 1);
-            else if (!splitPhase && n1->keys.size() <= 2*B*pow(leafSize, 2)){
-                //TODO: Merge
-            }
-            ++currStep;
-            break;
-        case 2: // Finish split/merge of n1
-            printf("Finish split/merge\n");
-            if(splitPhase && n1->keys.size() >= 4*B*pow(leafSize, 2)) n1->split(n1->keys.size()/2, 2);
-            else if (!splitPhase && n1->keys.size() <= 2*B*pow(leafSize, 2)){
-                //TODO: Merge
-            }
-            ++currStep;
-            break;
-        case 3: // Propagate splits/merges up
-            printf("Propagate up\n");
-            if(n1->parent) n1 = n1->parent;
-            ++currStep;
-            break;
-        case 4:
-            if(splitPhase && n1->tooBig(B, Bdelta, Nestimate)){
-                n1->split(n1->keys.size()/2, 1);
-            } else if(!splitPhase && n1->tooSmall(B, Bdelta, Nestimate)){
-                //TODO: Merge
-            }
-            ++currStep;
-            break;
-        case 5:
-            if(splitPhase && n1->tooBig(B, Bdelta, Nestimate)){
-                n1->split(n1->keys.size()/2, 2);
-            } else if(!splitPhase && n1->tooSmall(B, Bdelta, Nestimate)){
-                //TODO: Merge
-            }
-            ++currStep;
-            break;
-        case 6: // Update auxiliary information
-            n1->updateAux();
-            n2 = n1;
-            ++currStep;
-            break;
-        case 7: // Find child to flush to
-            if(!n2->isMicroLeaf() && n2->buffer.size() > B/Bdelta){
-                n3 = n2;
-                int childIndex = n3->findFlushingChild();
-                n4 = n3->children[childIndex];
-            }
-            ++currStep;
-            break;
-        case 8: // Flush to child
-            flush(n3);
-            n3 = n4;
-            if(!n3->isMicroLeaf() && n3->buffer.size() > B/Bdelta) currStep = 7;
-            else ++currStep;
-        case 9: // Move n3 up and update auxiliary information until the root is reached
-            moveToParentAndUpdateAux(n3);
-        case 10:
-            n5 = root;
-            ++currStep;
-        case 11:
-            if(!n5->isMicroLeaf() && n5->buffer.size() > B/Bdelta){
-                int childIndex = n5->findFlushingChild();
-                n6 = n5->children[childIndex];
-            }
-            ++currStep;
-            break;
-        case 12:
-            flush(n5);
-            n5 = n6;
-            if(!n5->isMicroLeaf() && n5->buffer.size() > B/Bdelta) {
-                currStep = 11;
-                continueCycle();
-            }
-            else moveToParentAndUpdateAux(n5);
-        case 13:
-            if(root->buffer.size() > B/Bdelta) {
-                currStep = 10;
-                continueCycle();
-            } else {
-                splitPhase = !splitPhase;
-                currStep = 0;
-            }
-        default:
-            break;
-        }
-    }
-
-    void findMicroLeaf(){
-        while(!n1->isMicroLeaf()){
+        // Moving n1 down
+        Node* n1 = root;
+        while(!n1->isMicroRoot()){
             int nextIndex = (splitPhase) ? n1->maxSizeIndex : n1->minSizeIndex;
             n1 = n1->children[nextIndex];
-            return; // I/O ->stop
+            //printf("Max index of n1: %i", nextIndex);
         }
-        ++currStep;
-    }
-
-    void moveToParentAndUpdateAux(Node* node){
-        while(node != root){
-            node = node->parent;
-            node->updateAux();
-            return;
+        printf("Moved n1 to microroot: ");
+        //n1->printKeys();
+        //Split merge micro-root
+        if(splitPhase && n1->getLeafSize() >= 4*B*pow(logB(Nestimate), 2)) {
+            printf("SPLIT CYCLE\n");
+            printTree();
+            n1->split();
         }
-        ++currStep;
-    }
-
-    void backgroundProcess(){
-        // Split/merge phase
-        if(splitPhase){
-            while(!n1->isMicroLeaf()) {
-                n1 = n1->children[n1->maxSizeIndex]; //I/O -> wait for updates
+        else if(!splitPhase && !root->keys.empty() && n1->getLeafSize() <= 2*B*pow(logB(Nestimate), 2)){
+            // Merging
+            printf("MERGE CYCLE\n");
+            Node* sibling = n1->getLeftSibling();
+            mergeLeft = true;
+            if(sibling == n1){
+                sibling = n1->getRightSibling();
+                mergeLeft = false;
             }
-            //if(n1->keys.size() >= 4*B*pow(leafSize, 2)) n1->split(n1->keys.size()/2);
-        } else{
-            while(!n1->isMicroLeaf()) n1 = n1->children[n1->minSizeIndex];
-            if(n1->keys.size() <= 2*B*pow(leafSize, 2)){
-                Node* sibling = n1->getLeftSibling();
-                if (sibling == n1) sibling = n1->getRightSibling();
-                if(sibling != n1 && sibling) n1->merge(sibling, 0, 0, 0);
-                else{
-                    sibling = n1->getRightSibling();
-                    n1->merge(sibling, n1->keys.size(), n1->children.size(), n1->buffer.size());
-                    //if(n1->tooBig(B, Bdelta, N)) n1->split(n1->keys.size()/2);
-                }
-            }
-        }
-
-        // Propagate splits/merges up
+            if(mergeLeft) n1->merge(sibling, 0, 0, 0);
+            else n1->merge(sibling, n1->keys.size(), n1->children.size(), n1->buffer.size());
+            // Split if resulting node too big
+            if(n1->getLeafSize() > 5*B*pow(logB(Nestimate), 2)) n1->split();
+        }            
+        printTree();
+        // Moving n1 up
         while(n1->parent){
             n1 = n1->parent;
-            //if(splitPhase && n1->tooBig(B, Bdelta, N)) n1->split(n1->keys.size()/2);
-            if(!splitPhase && n1->tooSmall(B, Bdelta, N)){
-                Node* sibling = n1->getLeftSibling();
-                if(sibling != n1 && sibling) n1->merge(sibling, 0, 0, 0);
-                else{
-                    sibling = n1->getRightSibling();
-                    n1->merge(sibling, n1->keys.size(), n1->children.size(), n1->buffer.size());
-                    //if(n1->tooBig(B, Bdelta, N)) n1->split(n1->keys.size()/2);
-                }
+            if(n1->keys.size() > Bdelta) {
+                printf("Splitting while moving n1 up\n");
+                //n1->printKeys();
+                n1->split();
+                fixRoot();
             }
-            //TODO: update auxiliary information
+            else if(n1 != root && n1->keys.size() <= Bdelta/2){
+                // Merging
+                printf("Merging while moving n1 up\n");
+                printTree();
+                Node* sibling = n1->getLeftSibling();
+                mergeLeft = true;
+                if(sibling == n1){
+                    sibling = n1->getRightSibling();
+                    mergeLeft = false;
+                }
+                if(mergeLeft) n1->merge(sibling, 0, 0, 0);
+                else n1->merge(sibling, n1->keys.size(), n1->children.size(), n1->buffer.size());
+                fixRoot();
+            }
+            n1->updateParentAux();
             Node* n2 = n1;
-            // Repeated flushing of split/merged node
-            Node* n3;
-            while(!n2->isMicroLeaf() && n2->buffer.size() > B/Bdelta){
-                n3 = n2;
-                // Propagate flush of split/merged node down
+
+            // Flush while n2 overfull
+            while(n2->buffer.size() > B/Bdelta){
+                printf("Flushing n2 while overfull\n");
+                Node* n3 = n2;
+                // Propagate flush of n3 down
                 while(n3->buffer.size() > B/Bdelta){
-                    int flushChild = n3->findFlushingChild();
-                    Node* n4 = n3->children[flushChild];
+                    printf("Progagate flush of n3 down\n");
+                    int flushChildIndex = n3->findFlushingChild();
+                    Node* n4 = n3->children[flushChildIndex];
                     flush(n3);
                     n3 = n4;
                 }
-                // Update auxiliary information
-                while(n3){
-                    //TODO
+                // Move n3 up while updating auxiliary information
+                while(n3->parent){
+                    printf("Moving n3 up and update auxiliary information\n");
+                    n3->updateParentAux();
                     n3 = n3->parent;
                 }
             }
-        }
 
-        // Flush from root
-        Node* n5 = root;
-        while(n5->buffer.size() > B/Bdelta){
-        int flushChild = n5->findFlushingChild();
-        Node* n6 = n5->children[flushChild];
-        flush(n5);
-        n5 = n6;
+            // Flush root buffer
+            while(root->buffer.size() > B/Bdelta){
+                printf("Flushing root buffer in cycle\n");
+                Node* n5 = root;
+                while(n5->buffer.size() > B/Bdelta){
+                    printf("Flushing n5\n");
+                    int flushChildIndex = n5->findFlushingChild();
+                    Node* n6 = n5->children[flushChildIndex];
+                    flush(n5);
+                    n5 = n6;
+                }
+                // Move n5 up while updating auxiliary information
+                while(n5->parent){
+                    printf("Moving n5 up and update auxiliary information\n");
+                    n5->updateParentAux();
+                    n5 = n5->parent;
+                }
+            }
         }
-        // Update auxiliary information
-        while(n5){
-            //TODO
-            n5 = n5->parent;
-        }
+        printf("Inversting splitPhase\n");
         splitPhase = !splitPhase;
     }
 

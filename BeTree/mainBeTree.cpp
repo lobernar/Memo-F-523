@@ -77,9 +77,9 @@ void testCase4(){
     Tests deletion 
     */
     BeTree t = BeTree(9, EPS);
-    for(int i=1; i<=150; i++) t.insertUpdate(i, INSERT);
+    for(int i=1; i<=5000; i++) t.insertUpdate(i, INSERT);
     t.printTree();
-    for(int i=150; i>0; i--) t.insertUpdate(i, DELETE);
+    for(int i=5000; i>0; i--) t.insertUpdate(i, DELETE);
     t.printTree();
 }
 
@@ -108,6 +108,13 @@ void testCase6(){
     printf("\n");
 }
 
+void testCase7(){
+    BeTree t = BeTree(20, EPS);
+    for(int i=0; i<pow(10, 6); ++i) t.insertUpdate(i, INSERT);
+    for(int i=5000; i<100000; ++i) t.insertUpdate(i, DELETE);
+    //t.printTree();
+}
+
 
 int main(){
     printf("\n------------------------------TEST CASE 1------------------------------\n\n");
@@ -122,6 +129,8 @@ int main(){
     testCase5();
     printf("\n------------------------------TEST CASE 6--------------------------\n\n");
     testCase6();
+    printf("\n------------------------------TEST CASE 7--------------------------\n\n");
+    testCase7();
 
 
     return 0;

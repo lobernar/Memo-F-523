@@ -1,6 +1,6 @@
 #include "Node.cpp"
 
-class BeTree{
+class BdTree{
     public:
     unsigned B;
     float delta;
@@ -28,7 +28,7 @@ class BeTree{
     Node* n5;
     Node* n6;
 
-    BeTree(unsigned BIn, float deltaIn, int N): B(BIn), delta(deltaIn), Nestimate(N) {
+    BdTree(unsigned BIn, float deltaIn, int N): B(BIn), delta(deltaIn), Nestimate(N) {
         root = NULL;
         blockTransfers = 0;
         N = 0;
@@ -62,8 +62,6 @@ class BeTree{
         if(root != NULL) root->printBT("", false);
     }
 
-    double log2B(int a){ return pow(log2(a), 2) / pow(log2(B), 2);}
-
     double logB(int a) {return log2(a)/log2(B);}
 
     void fixRoot(){
@@ -95,6 +93,7 @@ class BeTree{
             return;
         }
         node->keys.erase(node->keys.begin()+index); // Remove from micro-leaf
+        if(node->keys.size() < B*logB(Nestimate)/2) node->merge((B*logB(Nestimate))/2);
         --N;
     }
 
@@ -143,73 +142,61 @@ class BeTree{
     void insertUpdate(int key, int op){
         Message msg{key, op};
         root->buffer.push_back(msg);
-        if(root->keys.size() == 0 && root->buffer.size() > B/Bdelta){
-            flush(root);
-            printf("Flushing root buffer\n");
-        } 
+        if(root->buffer.size() > B/Bdelta) flush(root);
         ++updatesCounter;
         if(updatesCounter == ceil((B/(Bdelta*Bdelta)) / (ci*pow(logB(Nestimate), 3)))){
             updatesCounter = 0; // Reset counter
-            //printTree();
-            continueCycle();
+            cycle();
         }
     }
 
-    void continueCycle(){
+    void cycle(){
         // Moving n1 down
         Node* n1 = root;
         while(!n1->isMicroRoot()){
             int nextIndex = (splitPhase) ? n1->maxSizeIndex : n1->minSizeIndex;
             n1 = n1->children[nextIndex];
+            ++blockTransfers;
             //printf("Max index of n1: %i", nextIndex);
         }
-        printf("Moved n1 to microroot: ");
-        //n1->printKeys();
+        printf("Moved n1 to microroot\n");
         //Split merge micro-root
         if(splitPhase && n1->getLeafSize() >= 4*B*pow(logB(Nestimate), 2)) {
             printf("SPLIT CYCLE\n");
-            printTree();
+            //printTree();
             n1->split();
+            blockTransfers += 2;
         }
         else if(!splitPhase && !root->keys.empty() && n1->getLeafSize() <= 2*B*pow(logB(Nestimate), 2)){
             // Merging
             printf("MERGE CYCLE\n");
-            Node* sibling = n1->getLeftSibling();
-            mergeLeft = true;
-            if(sibling == n1){
-                sibling = n1->getRightSibling();
-                mergeLeft = false;
-            }
-            if(mergeLeft) n1->merge(sibling, 0, 0, 0);
-            else n1->merge(sibling, n1->keys.size(), n1->children.size(), n1->buffer.size());
+            n1->merge((B*logB(Nestimate))/2);
+            blockTransfers += 2;
             // Split if resulting node too big
-            if(n1->getLeafSize() > 5*B*pow(logB(Nestimate), 2)) n1->split();
+            if(n1->getLeafSize() > 5*B*pow(logB(Nestimate), 2)) {
+                n1->split();
+                blockTransfers += 2;
+            }
         }            
-        printTree();
         // Moving n1 up
         while(n1->parent){
             n1 = n1->parent;
-            if(n1->keys.size() > Bdelta) {
+            ++ blockTransfers;
+            if(splitPhase && n1->keys.size() > Bdelta) {
                 printf("Splitting while moving n1 up\n");
-                //n1->printKeys();
                 n1->split();
+                blockTransfers += 2;
                 fixRoot();
             }
-            else if(n1 != root && n1->keys.size() <= Bdelta/2){
+            else if(!splitPhase && n1 != root && n1->keys.size() <= Bdelta/2){
                 // Merging
                 printf("Merging while moving n1 up\n");
-                printTree();
-                Node* sibling = n1->getLeftSibling();
-                mergeLeft = true;
-                if(sibling == n1){
-                    sibling = n1->getRightSibling();
-                    mergeLeft = false;
-                }
-                if(mergeLeft) n1->merge(sibling, 0, 0, 0);
-                else n1->merge(sibling, n1->keys.size(), n1->children.size(), n1->buffer.size());
+                n1->merge((B*logB(Nestimate))/2);
+                blockTransfers += 2;
                 fixRoot();
+                //printTree();
             }
-            n1->updateParentAux();
+            n1->updateAux();
             Node* n2 = n1;
 
             // Flush while n2 overfull
@@ -223,12 +210,14 @@ class BeTree{
                     Node* n4 = n3->children[flushChildIndex];
                     flush(n3);
                     n3 = n4;
+                    ++ blockTransfers;
                 }
                 // Move n3 up while updating auxiliary information
                 while(n3->parent){
                     printf("Moving n3 up and update auxiliary information\n");
-                    n3->updateParentAux();
+                    n3->updateAux();
                     n3 = n3->parent;
+                    ++blockTransfers;
                 }
             }
 
@@ -237,25 +226,42 @@ class BeTree{
                 printf("Flushing root buffer in cycle\n");
                 Node* n5 = root;
                 while(n5->buffer.size() > B/Bdelta){
-                    printf("Flushing n5\n");
+                    printf("Flushing n5 and moving down\n");
                     int flushChildIndex = n5->findFlushingChild();
                     Node* n6 = n5->children[flushChildIndex];
                     flush(n5);
                     n5 = n6;
+                    ++blockTransfers;
                 }
                 // Move n5 up while updating auxiliary information
                 while(n5->parent){
                     printf("Moving n5 up and update auxiliary information\n");
-                    n5->updateParentAux();
+                    n5->updateAux();
                     n5 = n5->parent;
+                    ++blockTransfers;
                 }
             }
         }
-        printf("Inversting splitPhase\n");
+        printf("Finished one cycle with %i block transfers\n", blockTransfers);
         splitPhase = !splitPhase;
+        blockTransfers = 0;
     }
 
-    void rebuildTree(){
-        Nold = N;
+    void continueCycle(){
+        switch (currStep) {
+            case 0:
+                n1 = root; // No I/O since root always in main memory
+                ++currStep;
+            case 1: // Moving n1 down
+                if(!n1->isMicroRoot()){
+                    int nextIndex = (splitPhase) ? n1->maxSizeIndex : n1->minSizeIndex;
+                    n1 = n1->children[nextIndex];
+                    break;                    
+                } else ++currStep;
+            case 2:
+                break;
+
+        }
     }
+
 };

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <algorithm>
 
 #define DELETE 0
 #define INSERT 1
@@ -20,6 +21,8 @@ class Node{
         std::vector<Message> buffer;
         int maxSize, minSize; // Stores the maximum/minimum size of a leaf
         long int maxSizeIndex, minSizeIndex; // Indicates which child contains the subtree with max/min leaf
+        std::vector<int> maxVect, minVect;
+        std::vector<int> maxIndex, minIndex;
 
 
         Node(Node* parentIn, std::vector<Node*> childrenIn, std::vector<int> keysIn): parent(parentIn), children(childrenIn), keys(keysIn){
@@ -150,7 +153,7 @@ class Node{
             }
         }
 
-        void updateParentAux(){
+        void updateAux(){
             for(int index = 0; index<children.size(); ++index){
                 Node* child = children[index];
                 int big = (child->isMicroRoot()) ? child->getLeafSize() : child->maxSize;
@@ -162,6 +165,33 @@ class Node{
                 if(small < minSize){
                     minSize = small;
                     minSizeIndex = index;
+                }
+            }
+        }
+
+        void updateParentAux(){
+            if(isMicroRoot()){
+                int size = getLeafSize();
+                if(size > parent->maxSize){
+                    parent->maxSize = size;
+                    parent->maxSizeIndex = myIndex();
+                }
+                if(size < minSize){
+                    parent->minSize = size;
+                    parent->minSizeIndex = myIndex();
+                }
+            } else {
+                for(int c = 0; c<children.size(); ++c){
+                    if(children[c]->maxSize > parent->maxSize){
+                        this->maxSize = children[c]->maxSize;
+                        parent->maxSize = children[c]->maxSize;
+                        parent->maxSizeIndex = c;
+                    }
+                    if(children[c]->minSize < parent->minSize){
+                        this->minSize = children[c]->minSize;
+                        parent->minSize = children[c]->minSize;
+                        parent->minSizeIndex = c;
+                    }
                 }
             }
         }
@@ -190,7 +220,6 @@ class Node{
             }
             keys.erase(keys.begin()+half+isMicroLeaf(), keys.end()); // Keep key if node is micro-leaf (since we use duplicates)
             Node* newRight = new Node(parent, rightChildren, rightKeys); // I/O
-            newRight->printKeys();
             // Update children's parent
             for(Node* child : newRight->children){
                 if(child != NULL) child->setParent(newRight);
@@ -205,10 +234,6 @@ class Node{
 
             int rightIndex = parent->findChild(newRight->keys[0]);
             parent->insertChild(newRight, rightIndex);
-            newRight->printKeys();
-            // Update auxiliary information of parent
-            // updateParentAux();
-            // newRight->updateParentAux();
         }
 
         /*
@@ -217,7 +242,16 @@ class Node{
          *------------------------------------------------------------------------
         */
 
-        void merge(Node* sibling, int keyIndex, int childIndex, int buffIndex){
+        void merge(int threshold){
+            Node* sibling = getLeftSibling();
+            int keyIndex = 0, childIndex = 0, buffIndex = 0;
+            if(sibling == this){
+                sibling = getRightSibling();
+                keyIndex = keys.size();
+                childIndex = children.size();
+                buffIndex = buffer.size();
+            }
+            if(sibling->keys.size() > threshold) return; // Don't merge if sibling has enough keys
             // Merging keys and children into current node
             keys.insert(keys.begin()+keyIndex, sibling->keys.begin(), sibling->keys.end());
             for(Node* child : sibling->children){
@@ -241,9 +275,6 @@ class Node{
                 int keyDown = parent->keys[keyDownIndex];
                 keys.insert(keys.begin()+insertIndex, keyDown);
             }
-            parent->keys.erase(parent->keys.begin()+keyDownIndex);
-
-            // Update auxiliary information of parent    
-            updateParentAux();          
+            parent->keys.erase(parent->keys.begin()+keyDownIndex);        
         }
     };

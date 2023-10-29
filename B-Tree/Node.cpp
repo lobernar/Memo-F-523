@@ -2,6 +2,7 @@
 #include <vector>
 #include <math.h>
 
+
 class Node{
     public:
     Node* parent;

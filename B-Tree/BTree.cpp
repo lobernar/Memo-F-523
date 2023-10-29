@@ -5,10 +5,12 @@ class BTree{
     public:
     unsigned B;
     Node* root;
+    int N;
 
     BTree(unsigned BIn){
         B = BIn;
         root = NULL;
+        N = 0;
     }
 
     void printTree(){
@@ -27,7 +29,6 @@ class BTree{
         // Empty tree
         if(root == NULL) {
             root = new Node(NULL, std::vector<Node*>{}, std::vector<int>{key});
-            // DISK-WRITE
             return;
         } // Handle root overflow
         else if(root->keys.size() >= B) {
@@ -36,22 +37,26 @@ class BTree{
         }
         // Root node is already created -> find appropriate leaf
         Node* curr = root;
+        int blockTransfers = 0;
         int index = curr->findChild(key);
         // Check for nodes to split
         while(!curr->isLeaf() && curr != NULL){
             Node* next = curr->children[index];
-            
+            ++blockTransfers;
             // Check if split is needed + Update variables
             if(next->keys.size() >= B){
                 next->split(index, B/2);
+                blockTransfers += 2;
                 curr = next->parent;
             } else curr = next;
             index = curr->findChild(key);
         }
         curr->insertKey(key, index); // Will have reached a leaf here
+        printf("Inserting in a B-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double)log2(N)/log2(B)), N, B, blockTransfers);
+        ++N;
     }
 
-    void deleteFromInternal(Node* curr, int index, int& key, Node* next){
+    void deleteFromInternal(Node* curr, int index, int& key, Node* next, int* blockTransfers = 0){
         // Find child y/z that preceds/succeds k
         Node* predecessor = curr->getPredecessor(index);
         Node* successor = curr->getSuccessor(index);
@@ -62,6 +67,7 @@ class BTree{
             curr->keys[index] = predKey;
             key = predKey;
             next = predecessor;
+            ++blockTransfers;
         }
         // Find successor key and remove it recursively
         else if(successor != curr && successor->keys.size() >= floor((B+1)/2)){
@@ -70,33 +76,44 @@ class BTree{
             curr->keys[index] = succKey;
             key = succKey;
             next = successor;
+            ++blockTransfers;
         }
         // Merging predecessor with successor
         else{
             predecessor->insertKey(key, predecessor->keys.size());
             predecessor->merge(successor, false);
             next = predecessor; // Update variable
+            blockTransfers += 2;
         }
     }
 
 
     void remove(int key){
+        int blockTransfers = 0;
         Node* curr = root;
         int index = curr->findChild(key);
         while(curr!=NULL && !curr->isLeaf()){
             Node* next = curr->children[index];
+            ++blockTransfers;
             // Check if next child has enough keys
             if(!next->keys.size() >= floor((B+1)/2)){
                 Node* leftSibling = (index > 0) ? curr->children[index - 1] : NULL;
                 Node* rightSibling = (index < curr->children.size()-1) ? curr->children[index + 1] : NULL;
                 // Borrow from left sibling
-                if(leftSibling != NULL && leftSibling->keys.size() >= floor((B+1)/2)) curr->borrow(leftSibling, next, index-1, leftSibling->keys.size()-1, true);
+                if(leftSibling != NULL && leftSibling->keys.size() >= floor((B+1)/2)) {
+                    curr->borrow(leftSibling, next, index-1, leftSibling->keys.size()-1, true);
+                    ++blockTransfers;
+                }
                 // Borrow from right sibling
-                else if(rightSibling != NULL && rightSibling->keys.size() >= floor((B+1)/2)) curr->borrow(rightSibling, next, index, 0, false);
+                else if(rightSibling != NULL && rightSibling->keys.size() >= floor((B+1)/2)) {
+                    curr->borrow(rightSibling, next, index, 0, false);
+                    ++blockTransfers;
+                }
                 //Merging next child with one of his siblings
                 else{
                     if(leftSibling != NULL) next->merge(leftSibling, true);
                     else next->merge(rightSibling, false);
+                    blockTransfers += 2;
                     // Tree shrinks
                     if(curr == root && curr->keys.empty()) {
                         curr->children[0]->setParent(NULL);
@@ -107,7 +124,7 @@ class BTree{
                 }
             }
             //Delete from internal node
-            if(curr->keys[index] == key) deleteFromInternal(curr, index, key, next);
+            if(curr->keys[index] == key) deleteFromInternal(curr, index, key, next, &blockTransfers);
 
             curr = next;
             index = curr->findChild(key);
@@ -115,6 +132,8 @@ class BTree{
         // Will have reached a leaf here
         if(curr != NULL && curr->isLeaf() && curr->keys[index] == key){
             curr->keys.erase(curr->keys.begin()+index);
+            printf("Deleting in a B-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double) log2(N)/log2(B)), N, B, blockTransfers);
+            --N;
         } else{
             std::cout << "Key " << key << " not in tree!\n";
         }

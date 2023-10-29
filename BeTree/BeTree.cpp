@@ -11,10 +11,12 @@ class BeTree{
     unsigned Beps;
     Node* root;
     std::vector<Message> initBuff;
+    int N;
 
     BeTree(unsigned BIn, float epsIn): B(BIn), eps(epsIn){
         root = NULL;
         Beps = std::floor(pow(B, eps));
+        N = 0;
         std::cout << "B^e: " << Beps << std::endl;
         std::cout << "B - B^e: " << B - Beps << std::endl;
     }
@@ -23,21 +25,24 @@ class BeTree{
         if(root != NULL) root->printBT("", false);
     }
 
-    void insert(Node* node, int key, int blockTransfers = 1){
+    double logB(int a) {return log2(a)/log2(B);}
+
+    void insert(Node* node, int key){
         int index = node->findChild(key);
         node->insertKey(key, index);
-        ++blockTransfers; // DISK-WRITE
+        int blockTransfers = 1; // DISK-WRITE
         Node* curr = node;
         // Check if node needs to be split
         while(curr && curr->tooBig(B, Beps)){
-            int half = curr->isLeaf() ? B/2 : Beps/2;
-            curr->split(half);
+            curr->split();
             curr = curr->parent;
-            blockTransfers = blockTransfers + 2;
+            blockTransfers += 2;
         }
+        printf("Inserting in a Be-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double)log2(N)/log2(B)), N, B, blockTransfers);
+        ++N;
     }
 
-    void remove(Node* node, int key, int blockTransfers = 1){
+    void remove(Node* node, int key){
         int index = node->findChild(key);
         // Key not in tree
         if(node->keys[index] != key){
@@ -45,6 +50,7 @@ class BeTree{
             return;
         }
         node->keys.erase(node->keys.begin()+index); // Remove from leaf
+        int blockTransfers = 1;
         // Update parent key if needed
         if(node->isLeaf() && node != root) node->updateParent(key);
         Node* curr = node;
@@ -52,7 +58,7 @@ class BeTree{
         while(curr && curr->tooSmall(B, Beps) && curr->parent){
             Node* leftSibling = curr->getLeftSibling(); //DISK READ
             Node* rightSibling = curr->getRightSibling(); //DISK READ
-            ++blockTransfers;
+            blockTransfers += 2;
             // Borror from left sibling
             if(leftSibling != curr && leftSibling && leftSibling->bigEnough(B, Beps)){
                 curr->borrowLeft(leftSibling);
@@ -63,8 +69,7 @@ class BeTree{
             }
             // Merge with one of the sibling
             else{
-                if(leftSibling != curr) curr->merge(leftSibling, 0, 0, 0);
-                else curr->merge(rightSibling, curr->keys.size(), curr->children.size(), curr->buffer.size());
+                curr->merge();
             }
 
             // Update parent key if needed
@@ -76,12 +81,14 @@ class BeTree{
             while(curr->buffer.size() > B-Beps) flush(curr);
             curr = curr->parent;
         }
+        printf("Deleting in a Be-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double) log2(N)/log2(B)), N, B, blockTransfers);
+        --N;
+        //printTree();
     }
 
     void apply(Message msg, Node* node){
         switch(msg.op){
             case DELETE: 
-                std::cout << "Removing " << msg.key << std::endl;
                 remove(node, msg.key);
                 // Handle empty root case
                 if(root->keys.size()==0) {

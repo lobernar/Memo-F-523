@@ -1,18 +1,6 @@
 #include <iostream>
 #include "BTree.cpp"
 
-void testCase01(){
-    BTree t = BTree(6);
-    for(int i=1; i<=150; i++) t.insert(i);
-    t.printTree();
-}
-
-void testCase02(){
-    BTree t = BTree(6);
-    for(int i=150; i>0; i--) t.insert(i);
-    t.printTree();
-}
-
 void testCase1(){
     BTree t = BTree(6);
     for(int i=5; i<=65; i=i+5) t.insert(i);
@@ -99,7 +87,7 @@ void testCase6(){
 }
 
 void testCase7(){
-    BTree t = BTree(10);
+    BTree t = BTree(20);
     for(int i=1500; i>1; --i) t.insert(i);
     t.printTree();
     t.remove(3);
@@ -108,13 +96,19 @@ void testCase7(){
     t.printTree();
 }
 
+void testCase8(){
+    BTree t = BTree(20);
+    for(int i=1; i<= 1000000; i++) t.insert(i);
+}
+
+void testCase9(){
+    BTree t = BTree(20);
+    for(int i=1; i<= 1000000; i++) t.insert(i);
+    for(int i=1; i<50000; ++i) t.remove(i);
+}
+
 
 int main(int argc, char** argv){
-
-    std::cout << "------------------------------TEST CASE 01----------------------------\n";
-    testCase01(); 
-    std::cout << "------------------------------TEST CASE 02----------------------------\n";
-    testCase02();    
     std::cout << "------------------------------TEST CASE 1----------------------------\n";
     testCase1();
     std::cout << "------------------------------TEST CASE 2----------------------------\n";
@@ -129,6 +123,11 @@ int main(int argc, char** argv){
     testCase6();    
     std::cout << "------------------------------TEST CASE 7----------------------------\n";
     testCase7();    
+    std::cout << "------------------------------TEST CASE 8----------------------------\n";
+    testCase8();
+    std::cout << "------------------------------TEST CASE 9----------------------------\n";
+    testCase9();  
+
 
     return 0;
 }

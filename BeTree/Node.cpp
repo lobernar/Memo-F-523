@@ -141,8 +141,9 @@ class Node{
          *------------------------------------------------------------------------
         */
 
-        void split(int half){
+        void split(){
             // Idea: keep "this" as new left node and only create new right node + delete appropriate children/keys from "this"
+            int half = keys.size()/2;
             int keyUp = keys[half];
             std::vector<Node*> rightChildren = {};
             std::vector<int> rightKeys = {keys.begin()+half+1, keys.end()};
@@ -231,7 +232,15 @@ class Node{
             sibling->children.erase(sibling->children.begin()+eraseChildIndex);
         }
 
-        void merge(Node* sibling, int keyIndex, int childIndex, int buffIndex){
+        void merge(){
+            Node* sibling = getLeftSibling();
+            int keyIndex = 0, childIndex = 0, buffIndex = 0;
+            if(sibling == this){
+                sibling = getRightSibling();
+                keyIndex = keys.size();
+                childIndex = children.size();
+                buffIndex = buffer.size();
+            }
             int keyDownIndex = std::max(myIndex()-1, 0);
             if(keyDownIndex == parent->keys.size()) --keyDownIndex;
             // Merging keys and children into current node

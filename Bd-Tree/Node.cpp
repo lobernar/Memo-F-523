@@ -83,13 +83,23 @@ class Node{
         }
 
         int getLeafSize(){
-            //TODO: Delete matching INS/DEL updates
-            int res = buffer.size();
-            for(Node* child : children) res += child->keys.size();
+            //TODO Maybe swap innermost loop with outermost
+            int res = 0;
+            for(Node* child : children){
+                for(int key : child->keys){
+                    for(Message msg : buffer) { // Annihilate matching INS/DEL updates
+                        if(msg.key == key && msg.op == DELETE) break;
+                        else ++res;
+                    }
+                }
+            }
+
+            for(Message msg : buffer) {
+                if(msg.op != DELETE) ++res;
+            }
+
             return res;
         }
-
-        int getSize() {return keys.size();}
 
         void insertChild(Node* child, int index) {children.insert(children.begin()+index, child);}
 
@@ -154,19 +164,7 @@ class Node{
         }
 
         void updateAux(){
-            for(int index = 0; index<children.size(); ++index){
-                Node* child = children[index];
-                int big = (child->isMicroRoot()) ? child->getLeafSize() : child->maxSize;
-                int small = (child->isMicroRoot()) ? child->getLeafSize() : child->minSize;
-                if(big > maxSize){
-                    maxSize = big;
-                    maxSizeIndex = index;
-                }
-                if(small < minSize){
-                    minSize = small;
-                    minSizeIndex = index;
-                }
-            }
+            ;
         }
 
         void updateParentAux(){
@@ -202,7 +200,7 @@ class Node{
          *------------------------------------------------------------------------
         */
 
-        void split(){
+        void split(int* blockTransfers){
             // Idea: keep "this" as new left node and only create new right node + delete appropriate children/keys from "this"
             int half = keys.size()/2;
             int keyUp = keys[half];
@@ -211,6 +209,7 @@ class Node{
                 int parentIndex = parent->findChild(keyUp);
                 parent->insertKey(keyUp, parentIndex);
             } else parent = new Node(NULL, {this}, {keyUp}); // I/O
+            ++blockTransfers;
             std::vector<Node*> rightChildren = {};
             std::vector<int> rightKeys = {keys.begin()+half+1, keys.end()};
             // Handle children
@@ -220,12 +219,13 @@ class Node{
             }
             keys.erase(keys.begin()+half+isMicroLeaf(), keys.end()); // Keep key if node is micro-leaf (since we use duplicates)
             Node* newRight = new Node(parent, rightChildren, rightKeys); // I/O
+            ++blockTransfers;
             // Update children's parent
             for(Node* child : newRight->children){
                 if(child != NULL) child->setParent(newRight);
             }
             // Split buffer
-            for(std::vector<Message>::iterator iter = buffer.begin(); iter != buffer.end();){
+            for(auto iter = buffer.begin(); iter != buffer.end();){
                 if(iter->key > keyUp){
                     newRight->buffer.push_back(*iter);
                     iter = buffer.erase(iter);
@@ -234,6 +234,7 @@ class Node{
 
             int rightIndex = parent->findChild(newRight->keys[0]);
             parent->insertChild(newRight, rightIndex);
+            ++blockTransfers;
         }
 
         /*
@@ -242,14 +243,16 @@ class Node{
          *------------------------------------------------------------------------
         */
 
-        void merge(int threshold){
+        void merge(int threshold, int* blockTransfers){
             Node* sibling = getLeftSibling();
+            ++blockTransfers;
             int keyIndex = 0, childIndex = 0, buffIndex = 0;
-            if(sibling == this){
+            if(sibling == this || sibling->keys.size() > threshold){
                 sibling = getRightSibling();
                 keyIndex = keys.size();
                 childIndex = children.size();
                 buffIndex = buffer.size();
+                ++blockTransfers;
             }
             if(sibling->keys.size() > threshold) return; // Don't merge if sibling has enough keys
             // Merging keys and children into current node
@@ -275,6 +278,7 @@ class Node{
                 int keyDown = parent->keys[keyDownIndex];
                 keys.insert(keys.begin()+insertIndex, keyDown);
             }
-            parent->keys.erase(parent->keys.begin()+keyDownIndex);        
+            parent->keys.erase(parent->keys.begin()+keyDownIndex);
+            ++blockTransfers;     
         }
     };

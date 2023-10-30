@@ -1,3 +1,4 @@
+#include <fstream>
 #include "Node.cpp"
 
 #define DELETE 0
@@ -25,12 +26,31 @@ class BeTree{
         if(root != NULL) root->printBT("", false);
     }
 
+    // Function to generate a DOT file for a B-tree
+    void generateDotFile(Node* root, std::ofstream& dotFile) {
+        if (root) {
+            dotFile << "node_" << root << " [label=\"";
+            for (size_t i = 0; i < root->keys.size(); ++i) {
+                dotFile << root->keys[i];
+                if (i < root->keys.size() - 1) {
+                    dotFile << " | ";
+                }
+            }
+            dotFile << "\"];" << std::endl;
+
+            for (Node* child : root->children) {
+                dotFile << "node_" << root << " -> node_" << child << ";" << std::endl;
+                generateDotFile(child, dotFile);
+            }
+        }
+    }
+
     double logB(int a) {return log2(a)/log2(B);}
 
-    void insert(Node* node, int key){
+    void insert(Node* node, int key, int* blockTransfers=0){
         int index = node->findChild(key);
         node->insertKey(key, index);
-        int blockTransfers = 1; // DISK-WRITE
+        ++blockTransfers; // DISK-WRITE
         Node* curr = node;
         // Check if node needs to be split
         while(curr && curr->tooBig(B, Beps)){
@@ -38,11 +58,11 @@ class BeTree{
             curr = curr->parent;
             blockTransfers += 2;
         }
-        printf("Inserting in a Be-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double)log2(N)/log2(B)), N, B, blockTransfers);
+        //printf("Inserting in a Be-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double)log2(N)/log2(B)), N, B, *blockTransfers);
         ++N;
     }
 
-    void remove(Node* node, int key){
+    void remove(Node* node, int key, int* blockTransfers=0){
         int index = node->findChild(key);
         // Key not in tree
         if(node->keys[index] != key){
@@ -50,7 +70,7 @@ class BeTree{
             return;
         }
         node->keys.erase(node->keys.begin()+index); // Remove from leaf
-        int blockTransfers = 1;
+        ++blockTransfers;
         // Update parent key if needed
         if(node->isLeaf() && node != root) node->updateParent(key);
         Node* curr = node;
@@ -81,12 +101,12 @@ class BeTree{
             while(curr->buffer.size() > B-Beps) flush(curr);
             curr = curr->parent;
         }
-        printf("Deleting in a Be-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double) log2(N)/log2(B)), N, B, blockTransfers);
+        //printf("Deleting in a Be-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double) log2(N)/log2(B)), N, B, *blockTransfers);
         --N;
         //printTree();
     }
 
-    void apply(Message msg, Node* node){
+    void apply(Message msg, Node* node, int* blockTransfers=0){
         switch(msg.op){
             case DELETE: 
                 remove(node, msg.key);
@@ -110,16 +130,17 @@ class BeTree{
         }
     }
 
-    void flush(Node* node){
+    void flush(Node* node, int* blockTransfers=0){
         // Flushes at least O(B^(1-eps)) updates (pigeonhole principle)
         int childIndex = node->findFlushingChild();
         Node* child = node->children[childIndex];
+        ++blockTransfers;
         for(auto it = node->buffer.begin(); it != node->buffer.end();){
             if(node->findChild(it->key) == childIndex){
                 Message msg = *it;
                 it = node->buffer.erase(it);
                 if(child->isLeaf()) {
-                    apply(msg, child);
+                    apply(msg, child, blockTransfers);
                     // Need to update variables
                     it = node->buffer.begin(); 
                     childIndex = node->findFlushingChild();
@@ -129,7 +150,7 @@ class BeTree{
         }
         if(!child->isLeaf()) child->annihilateMatching(); // Annihilate matching ins/del operations
         // Flush child if needed (can cause flushing cascades)
-        while(child->buffer.size() > B-Beps) flush(child);
+        while(child->buffer.size() > B-Beps) flush(child, blockTransfers);
     }
 
     void insertUpdate(int key, int op){

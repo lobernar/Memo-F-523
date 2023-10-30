@@ -1,3 +1,4 @@
+#include <fstream>
 #include "Node.cpp"
 
 class BdTree{
@@ -7,7 +8,7 @@ class BdTree{
     unsigned Bdelta;
     Node* root;
     std::vector<Message> initBuff;
-    unsigned blockTransfers;
+    int blockTransfers;
     int N; // Number of elements in the tree
     int Nestimate;
     int Nold;
@@ -62,6 +63,25 @@ class BdTree{
         if(root != NULL) root->printBT("", false);
     }
 
+    // Function to generate a DOT file for a B-tree
+    void generateDotFile(Node* root, std::ofstream& dotFile) {
+        if (root) {
+            dotFile << "node_" << root << " [label=\"";
+            for (size_t i = 0; i < root->keys.size(); ++i) {
+                dotFile << root->keys[i];
+                if (i < root->keys.size() - 1) {
+                    dotFile << " | ";
+                }
+            }
+            dotFile << "\"];" << std::endl;
+
+            for (Node* child : root->children) {
+                dotFile << "node_" << root << " -> node_" << child << ";" << std::endl;
+                generateDotFile(child, dotFile);
+            }
+        }
+    }
+
     double logB(int a) {return log2(a)/log2(B);}
 
     void fixRoot(){
@@ -80,7 +100,7 @@ class BdTree{
         node->insertKey(key, index);
         // Only micro-leafs call this method
         if(node->keys.size() >= B*logB(Nestimate)) {
-            node->split();
+            node->split(&blockTransfers);
         }
         ++N;
     }
@@ -93,7 +113,7 @@ class BdTree{
             return;
         }
         node->keys.erase(node->keys.begin()+index); // Remove from micro-leaf
-        if(node->keys.size() < B*logB(Nestimate)/2) node->merge((B*logB(Nestimate))/2);
+        if(node->keys.size() < B*logB(Nestimate)/2) node->merge((B*logB(Nestimate))/2, &blockTransfers);
         --N;
     }
 
@@ -103,18 +123,12 @@ class BdTree{
                 std::cout << "Removing " << msg.key << std::endl;
                 remove(node, msg.key);
                 // Handle empty root case
-                if(root->keys.size()==0) {
-                    root->children[0]->buffer.insert(root->children[0]->buffer.begin(), root->buffer.begin(), root->buffer.end());
-                    root->buffer.clear();
-                    root = root->children[0];
-                    root->setParent(NULL);
-                    for(int i=1; i<root->children.size(); i++) root->children[i]->setParent(root);
-                }
+                fixRoot();
                 break;
             case INSERT: 
                 insert(node, msg.key);
                 // Handle new root case
-                if(root->parent != NULL) root = root->parent;
+                fixRoot();
                 break;
             default: break;
         }
@@ -164,18 +178,15 @@ class BdTree{
         if(splitPhase && n1->getLeafSize() >= 4*B*pow(logB(Nestimate), 2)) {
             printf("SPLIT CYCLE\n");
             //printTree();
-            n1->split();
-            blockTransfers += 2;
+            n1->split(&blockTransfers);
         }
         else if(!splitPhase && !root->keys.empty() && n1->getLeafSize() <= 2*B*pow(logB(Nestimate), 2)){
             // Merging
             printf("MERGE CYCLE\n");
-            n1->merge((B*logB(Nestimate))/2);
-            blockTransfers += 2;
+            n1->merge((B*logB(Nestimate))/2, &blockTransfers);
             // Split if resulting node too big
             if(n1->getLeafSize() > 5*B*pow(logB(Nestimate), 2)) {
-                n1->split();
-                blockTransfers += 2;
+                n1->split(&blockTransfers);
             }
         }            
         // Moving n1 up
@@ -184,15 +195,13 @@ class BdTree{
             ++ blockTransfers;
             if(splitPhase && n1->keys.size() > Bdelta) {
                 printf("Splitting while moving n1 up\n");
-                n1->split();
-                blockTransfers += 2;
+                n1->split(&blockTransfers);
                 fixRoot();
             }
             else if(!splitPhase && n1 != root && n1->keys.size() <= Bdelta/2){
                 // Merging
                 printf("Merging while moving n1 up\n");
-                n1->merge((B*logB(Nestimate))/2);
-                blockTransfers += 2;
+                n1->merge((B*logB(Nestimate))/2, &blockTransfers);
                 fixRoot();
                 //printTree();
             }

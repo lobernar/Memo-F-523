@@ -1,3 +1,4 @@
+#include <fstream>
 #include "Node.cpp"
 
 class BTree{
@@ -15,6 +16,25 @@ class BTree{
 
     void printTree(){
         if(root != NULL) root->printBT("", false);
+    }
+
+    // Function to generate a DOT file for a B-tree
+    void generateDotFile(Node* root, std::ofstream& dotFile) {
+        if (root) {
+            dotFile << "node_" << root << " [label=\"";
+            for (size_t i = 0; i < root->keys.size(); ++i) {
+                dotFile << root->keys[i];
+                if (i < root->keys.size() - 1) {
+                    dotFile << " | ";
+                }
+            }
+            dotFile << "\"];" << std::endl;
+
+            for (Node* child : root->children) {
+                dotFile << "node_" << root << " -> node_" << child << ";" << std::endl;
+                generateDotFile(child, dotFile);
+            }
+        }
     }
 
     Node* search(int k){

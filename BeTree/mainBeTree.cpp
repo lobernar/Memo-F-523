@@ -105,6 +105,11 @@ void testCase6(){
     int from = 70, to = 140;
     std::vector<int> preds = t.range(from, to);
     for(int key : preds) printf("%i ", key);
+    std::ofstream dotFile("betree.dot");
+    dotFile << "digraph BTree {" << std::endl;
+    dotFile << "rankdir=TB;" << std::endl;
+    t.generateDotFile(t.root, dotFile);
+    dotFile << "}" <<std::endl;
     printf("\n");
 }
 
@@ -112,6 +117,10 @@ void testCase7(){
     BeTree t = BeTree(20, EPS);
     for(int i=0; i<pow(10, 6); ++i) t.insertUpdate(i, INSERT);
     for(int i=5000; i<100000; ++i) t.insertUpdate(i, DELETE);
+    //std::ofstream dotFile("bdTree.dot");
+    // dotFile << "digraph BTree {" << std::endl;
+    // t.generateDotFile(t.root, dotFile);
+    // dotFile << "}" <<std::endl;
     //t.printTree();
 }
 

@@ -165,7 +165,7 @@ class Node{
                 if(child != NULL) child->setParent(newRight);
             }
             // Split buffer
-            for(std::vector<Message>::iterator iter = buffer.begin(); iter != buffer.end();){
+            for(auto iter = buffer.begin(); iter != buffer.end();){
                 if(iter->key > keyUp){
                     newRight->buffer.push_back(*iter);
                     iter = buffer.erase(iter);

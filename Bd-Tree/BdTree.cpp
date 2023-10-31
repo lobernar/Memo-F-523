@@ -63,21 +63,29 @@ class BdTree{
         if(root != NULL) root->printBT("", false);
     }
 
+    void generateDotFile(){
+        std::ofstream dotFile("betree.dot");
+        dotFile << "digraph BTree {" << std::endl;
+        dotFile << "node [shape = record,height=.5];" << std::endl;
+        generateDotNode(root, dotFile);
+        dotFile << "}" <<std::endl;
+    }
+
     // Function to generate a DOT file for a B-tree
-    void generateDotFile(Node* root, std::ofstream& dotFile) {
-        if (root) {
-            dotFile << "node_" << root << " [label=\"";
-            for (size_t i = 0; i < root->keys.size(); ++i) {
-                dotFile << root->keys[i];
-                if (i < root->keys.size() - 1) {
-                    dotFile << " | ";
-                }
+    void generateDotNode(Node* node, std::ofstream& dotFile) {
+        if (node) {
+            std::string nodeLabel = "node_" + std::to_string(reinterpret_cast<uintptr_t>(node));
+            dotFile << nodeLabel << "[label = \"<f0>";
+            
+            for (size_t i = 0; i < node->keys.size(); ++i) {
+                dotFile << " |" << node->keys[i] << "|<f" << (i + 1) << ">";
             }
+
             dotFile << "\"];" << std::endl;
 
-            for (Node* child : root->children) {
-                dotFile << "node_" << root << " -> node_" << child << ";" << std::endl;
-                generateDotFile(child, dotFile);
+            for (size_t i = 0; i < node->children.size(); ++i) {
+                generateDotNode(node->children[i], dotFile);
+                dotFile << "\"" << nodeLabel << "\":f" << i << " -> \"node_" << reinterpret_cast<uintptr_t>(node->children[i]) << "\";" << std::endl;
             }
         }
     }
@@ -123,12 +131,18 @@ class BdTree{
                 std::cout << "Removing " << msg.key << std::endl;
                 remove(node, msg.key);
                 // Handle empty root case
-                fixRoot();
+                if(root->keys.size()==0){
+                    root->children[0]->buffer.insert(root->children[0]->buffer.begin(), root->buffer.begin(), root->buffer.end());
+                    root->buffer.clear();
+                    root = root->children[0];
+                    root->setParent(NULL);
+                    for(int i=1; i<root->children.size(); i++) root->children[i]->setParent(root);
+                }
                 break;
             case INSERT: 
                 insert(node, msg.key);
                 // Handle new root case
-                fixRoot();
+                if(root->parent != NULL) root = root->parent;
                 break;
             default: break;
         }
@@ -171,14 +185,16 @@ class BdTree{
             int nextIndex = (splitPhase) ? n1->maxSizeIndex : n1->minSizeIndex;
             n1 = n1->children[nextIndex];
             ++blockTransfers;
-            //printf("Max index of n1: %i", nextIndex);
+            //printTree();
+            
         }
         printf("Moved n1 to microroot\n");
         //Split merge micro-root
         if(splitPhase && n1->getLeafSize() >= 4*B*pow(logB(Nestimate), 2)) {
             printf("SPLIT CYCLE\n");
             //printTree();
-            n1->split(&blockTransfers);
+            if(n1->keys.size() == 0) n1->children[0]->split(&blockTransfers);
+            else n1->split(&blockTransfers);
         }
         else if(!splitPhase && !root->keys.empty() && n1->getLeafSize() <= 2*B*pow(logB(Nestimate), 2)){
             // Merging
@@ -191,6 +207,7 @@ class BdTree{
         }            
         // Moving n1 up
         while(n1->parent){
+            printf("Moving n1 up\n");
             n1 = n1->parent;
             ++ blockTransfers;
             if(splitPhase && n1->keys.size() > Bdelta) {
@@ -251,7 +268,7 @@ class BdTree{
                 }
             }
         }
-        printf("Finished one cycle with %i block transfers\n", blockTransfers);
+        //printf("Finished one cycle with %i block transfers\n", blockTransfers);
         splitPhase = !splitPhase;
         blockTransfers = 0;
     }

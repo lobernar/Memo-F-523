@@ -18,25 +18,32 @@ class BTree{
         if(root != NULL) root->printBT("", false);
     }
 
+    void generateDotFile(){
+        std::ofstream dotFile("betree.dot");
+        dotFile << "digraph BTree {" << std::endl;
+        dotFile << "node [shape = record,height=.5];" << std::endl;
+        generateDotNode(root, dotFile);
+        dotFile << "}" <<std::endl;
+    }
+
     // Function to generate a DOT file for a B-tree
-    void generateDotFile(Node* root, std::ofstream& dotFile) {
-        if (root) {
-            dotFile << "node_" << root << " [label=\"";
-            for (size_t i = 0; i < root->keys.size(); ++i) {
-                dotFile << root->keys[i];
-                if (i < root->keys.size() - 1) {
-                    dotFile << " | ";
-                }
+    void generateDotNode(Node* node, std::ofstream& dotFile) {
+        if (node) {
+            std::string nodeLabel = "node_" + std::to_string(reinterpret_cast<uintptr_t>(node));
+            dotFile << nodeLabel << "[label = \"<f0>";
+            
+            for (size_t i = 0; i < node->keys.size(); ++i) {
+                dotFile << " |" << node->keys[i] << "|<f" << (i + 1) << ">";
             }
+
             dotFile << "\"];" << std::endl;
 
-            for (Node* child : root->children) {
-                dotFile << "node_" << root << " -> node_" << child << ";" << std::endl;
-                generateDotFile(child, dotFile);
+            for (size_t i = 0; i < node->children.size(); ++i) {
+                generateDotNode(node->children[i], dotFile);
+                dotFile << "\"" << nodeLabel << "\":f" << i << " -> \"node_" << reinterpret_cast<uintptr_t>(node->children[i]) << "\";" << std::endl;
             }
         }
     }
-
     Node* search(int k){
         if(root == NULL){
             std::cout << "The tree is empty" << std::endl;

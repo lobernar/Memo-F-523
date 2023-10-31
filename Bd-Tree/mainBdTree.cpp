@@ -7,11 +7,9 @@ void testCase1(){
     */
     int N = pow(10, 3);
     BdTree t = BdTree(20, DELTA, N);
-    std::ofstream dotFile("bdTree.dot");
-    dotFile << "diagraph BTree {" << std::endl;
     for(int i=1; i<=2000; i++) t.insertUpdate(i, INSERT);
-    t.generateDotFile(t.root, dotFile);
-    dotFile << "}" <<std::endl;
+    t.generateDotFile();
+    t.printTree();
 }
 
 void testCase2(){

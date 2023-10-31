@@ -105,11 +105,7 @@ void testCase6(){
     int from = 70, to = 140;
     std::vector<int> preds = t.range(from, to);
     for(int key : preds) printf("%i ", key);
-    std::ofstream dotFile("betree.dot");
-    dotFile << "digraph BTree {" << std::endl;
-    dotFile << "rankdir=TB;" << std::endl;
-    t.generateDotFile(t.root, dotFile);
-    dotFile << "}" <<std::endl;
+    t.generateDotFile();
     printf("\n");
 }
 

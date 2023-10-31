@@ -87,17 +87,21 @@ class Node{
             int res = 0;
             for(Node* child : children){
                 for(int key : child->keys){
+                    bool deleted = false;
                     for(Message msg : buffer) { // Annihilate matching INS/DEL updates
-                        if(msg.key == key && msg.op == DELETE) break;
-                        else ++res;
+                        if(msg.key == key && msg.op == DELETE){
+                            deleted = true;
+                            break;
+                        }
                     }
+                    if(!deleted) ++res;
                 }
             }
 
             for(Message msg : buffer) {
                 if(msg.op != DELETE) ++res;
             }
-
+            printf("Leaf size: %i\n", res);
             return res;
         }
 
@@ -244,17 +248,18 @@ class Node{
         */
 
         void merge(int threshold, int* blockTransfers){
+            printf("Merging\n");
             Node* sibling = getLeftSibling();
             ++blockTransfers;
             int keyIndex = 0, childIndex = 0, buffIndex = 0;
-            if(sibling == this || sibling->keys.size() > threshold){
+            if(sibling == this){ //|| sibling->keys.size() > threshold
                 sibling = getRightSibling();
                 keyIndex = keys.size();
                 childIndex = children.size();
                 buffIndex = buffer.size();
                 ++blockTransfers;
             }
-            if(sibling->keys.size() > threshold) return; // Don't merge if sibling has enough keys
+            //if(sibling->keys.size() > threshold) return; // Don't merge if sibling has enough keys
             // Merging keys and children into current node
             keys.insert(keys.begin()+keyIndex, sibling->keys.begin(), sibling->keys.end());
             for(Node* child : sibling->children){

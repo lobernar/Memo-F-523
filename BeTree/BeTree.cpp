@@ -12,11 +12,13 @@ class BeTree{
     unsigned Beps;
     Node* root;
     std::vector<Message> initBuff;
+    unsigned blockTransfers;
     int N;
 
     BeTree(unsigned BIn, float epsIn): B(BIn), eps(epsIn){
         root = NULL;
         Beps = std::floor(pow(B, eps));
+        blockTransfers = 0;
         N = 0;
         std::cout << "B^e: " << Beps << std::endl;
         std::cout << "B - B^e: " << B - Beps << std::endl;
@@ -26,6 +28,7 @@ class BeTree{
         if(root != NULL) root->printBT("", false);
     }
 
+    // Function to generate a DOT file for a B-tree
     void generateDotFile(){
         std::ofstream dotFile("betree.dot");
         dotFile << "digraph BTree {" << std::endl;
@@ -33,8 +36,7 @@ class BeTree{
         generateDotNode(root, dotFile);
         dotFile << "}" <<std::endl;
     }
-
-    // Function to generate a DOT file for a B-tree
+    
     void generateDotNode(Node* node, std::ofstream& dotFile) {
         if (node) {
             std::string nodeLabel = "node_" + std::to_string(reinterpret_cast<uintptr_t>(node));
@@ -55,7 +57,7 @@ class BeTree{
 
     double logB(int a) {return log2(a)/log2(B);}
 
-    void insert(Node* node, int key, int* blockTransfers=0){
+    void insert(Node* node, int key){
         int index = node->findChild(key);
         node->insertKey(key, index);
         ++blockTransfers; // DISK-WRITE
@@ -70,7 +72,7 @@ class BeTree{
         ++N;
     }
 
-    void remove(Node* node, int key, int* blockTransfers=0){
+    void remove(Node* node, int key){
         int index = node->findChild(key);
         // Key not in tree
         if(node->keys[index] != key){
@@ -78,7 +80,7 @@ class BeTree{
             return;
         }
         node->keys.erase(node->keys.begin()+index); // Remove from leaf
-        ++blockTransfers;
+        ++blockTransfers; // DISK-WRITE
         // Update parent key if needed
         if(node->isLeaf() && node != root) node->updateParent(key);
         Node* curr = node;
@@ -109,12 +111,10 @@ class BeTree{
             while(curr->buffer.size() > B-Beps) flush(curr);
             curr = curr->parent;
         }
-        //printf("Deleting in a Be-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double) log2(N)/log2(B)), N, B, *blockTransfers);
         --N;
-        //printTree();
     }
 
-    void apply(Message msg, Node* node, int* blockTransfers=0){
+    void apply(Message msg, Node* node){
         switch(msg.op){
             case DELETE: 
                 remove(node, msg.key);
@@ -127,18 +127,20 @@ class BeTree{
                     for(int i=1; i<root->children.size(); i++) root->children[i]->setParent(root);
                     while(root->buffer.size() > B-Beps) flush(root);
                 }
-                //printTree();
+                printf("Deleting in a Be-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double) log2(N)/log2(B)), N, B, blockTransfers);
                 break;
             case INSERT: 
                 insert(node, msg.key);
                 // Handle new root case
                 if(root->parent != NULL) root = root->parent;
+                printf("Inserting in a Be-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double) log2(N)/log2(B)), N, B, blockTransfers);
                 break;
             default: break;
         }
+        blockTransfers = 0;
     }
 
-    void flush(Node* node, int* blockTransfers=0){
+    void flush(Node* node){
         // Flushes at least O(B^(1-eps)) updates (pigeonhole principle)
         int childIndex = node->findFlushingChild();
         Node* child = node->children[childIndex];
@@ -148,7 +150,7 @@ class BeTree{
                 Message msg = *it;
                 it = node->buffer.erase(it);
                 if(child->isLeaf()) {
-                    apply(msg, child, blockTransfers);
+                    apply(msg, child);
                     // Need to update variables
                     it = node->buffer.begin(); 
                     childIndex = node->findFlushingChild();
@@ -158,12 +160,13 @@ class BeTree{
         }
         if(!child->isLeaf()) child->annihilateMatching(); // Annihilate matching ins/del operations
         // Flush child if needed (can cause flushing cascades)
-        while(child->buffer.size() > B-Beps) flush(child, blockTransfers);
+        while(child->buffer.size() > B-Beps) flush(child);
     }
 
     void insertUpdate(int key, int op){
         Message msg{key, op};
         // Insert message in initial buffer (not bounded to the root node)
+        int blockTransfers = 0;
         if(root == NULL) {
             initBuff.push_back(msg);
             // Apply messages of the initial buffer and empty it
@@ -178,9 +181,10 @@ class BeTree{
             if(root->isLeaf()) apply(msg, root); // If root is a leaf -> instantly apply update
             else{ // If root is not a leaf -> add msg to its buffer
                 root->buffer.push_back(msg);
-                if(root->buffer.size() > B-Beps) flush(root);            
+                if(root->buffer.size() > B-Beps) flush(root);         
             }           
         }
+        blockTransfers = 0;
     }
 
     int predecessor(int key){
@@ -207,7 +211,10 @@ class BeTree{
                     curr = curr->children[index-1];
                 }
             }
-            for(Message msg : pending) apply(msg, curr); // apply pending updates TODO: annihilate insert-delete operations
+            // Insert pending updates in current buffer
+            curr->buffer.insert(curr->buffer.begin(), pending.begin(), pending.end());
+            curr->annihilateMatching();
+            for(Message msg : pending) apply(msg, curr); // apply pending updates
 
             return curr->keys[curr->findChild(key)-1];
         }

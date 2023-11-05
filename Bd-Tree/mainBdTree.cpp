@@ -6,7 +6,7 @@ void testCase1(){
     Tests insertion
     */
     int N = pow(10, 3);
-    BdTree t = BdTree(20, DELTA, N);
+    BdTree t = BdTree(10, DELTA, N);
     for(int i=1; i<=2000; i++) t.insertUpdate(i, INSERT);
     t.generateDotFile();
     t.printTree();

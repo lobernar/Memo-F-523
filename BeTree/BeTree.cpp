@@ -32,6 +32,7 @@ class BeTree{
     void generateDotFile(){
         std::ofstream dotFile("betree.dot");
         dotFile << "digraph BTree {" << std::endl;
+        //dotFile << "rankdir=TB;" << std::endl;
         dotFile << "node [shape = record,height=.5];" << std::endl;
         generateDotNode(root, dotFile);
         dotFile << "}" <<std::endl;

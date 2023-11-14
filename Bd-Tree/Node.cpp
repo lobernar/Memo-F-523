@@ -20,19 +20,18 @@ class Node{
         std::vector<int> keys;
         std::vector<Message> buffer;
         std::vector<int> maxVect, minVect; // Stores the maximum/minimum size of a leaf
-        std::vector<int> maxIndex, minIndex; // Indicates which child contains the subtree with max/min leaf
 
 
         Node(Node* parentIn, std::vector<Node*> childrenIn, std::vector<int> keysIn): parent(parentIn), children(childrenIn), keys(keysIn){
             //DISK-WRITE
             buffer = std::vector<Message>{};
-            maxVect = {0}, minVect = {0}, maxIndex = {0}, minIndex = {0};
+            maxVect = {0}, minVect = {0};
         }
         
         Node(Node* parentIn, std::vector<Node*> childrenIn, std::vector<int> keysIn, std::vector<Message> buffIn): parent(parentIn), 
             children(childrenIn), keys(keysIn), buffer(buffIn){
             //DISK-WRITE
-            maxVect = {0}, minVect = {0}, maxIndex = {0}, minIndex = {0};
+            maxVect = {0}, minVect = {0};
         }
         
         /*
@@ -101,29 +100,20 @@ class Node{
         }
 
         int getMaxLeafIndex() {
-            int maxElement = maxVect[0];
-            int maxIndex = 0;
-
-            for (int i = 1; i < maxVect.size(); ++i) {
-                if (maxVect[i] > maxElement) {
-                    maxElement = maxVect[i];
-                    maxIndex = i;
-                }
-            }
-            return maxIndex;
+            return std::max_element(maxVect.begin(), maxVect.end()) - maxVect.begin();
         }
 
         int getMinLeafIndex() {
             int minElement = minVect[0];
             int minIndex = 0;
-
             for (int i = 1; i < minVect.size(); ++i) {
                 if (minVect[i] < minElement) {
                     minElement = minVect[i];
                     minIndex = i;
                 }
             }
-            return minIndex;
+            //return minIndex;
+            return std::min_element(minVect.begin(), minVect.end()) - minVect.begin();
         }
 
 
@@ -144,7 +134,7 @@ class Node{
         }
 
         int myIndex(){
-            return parent->findChild(keys[0]);
+            return (keys.size() > 0) ? parent->findChild(keys[0]) : 0;
         }
 
         int findFlushingChild(){
@@ -190,32 +180,44 @@ class Node{
             }
         }
 
-        void updateAux(){
+        void updateParentAux(){
             int index = myIndex();
-            printf("Updating node: %i \n", index);
             if(isMicroRoot()) {    
                 int size = getLeafSize();
-                if(index > maxVect.size()){
-                    maxVect.push_back(size);
-                    maxIndex.push_back(index);
-                    minVect.push_back(size);
-                    minIndex.push_back(index);
-                } else {
-                    maxVect[index] = size;
-                    minVect[index] = size;
+                if(index + 1 > parent->maxVect.size()){ // Split case
+                    parent->maxVect.insert(parent->maxVect.begin()+index, size);
+                    parent->minVect.insert(parent->minVect.begin()+index, size);
+                } else { // Usual case
+                    parent->maxVect[index] = size;
+                    parent->minVect[index] = size;
                 }
+                printf("Leaf size = %i\n", size);
             } else if(!isMicroLeaf()) {
-            }
+                int bigIndex = getMaxLeafIndex();
+                int smallIndex = getMinLeafIndex();
+                int parentMax = parent->maxVect[index];
+                int parentMin = parent->minVect[index];
+                if(index + 1 > parent->maxVect.size()){
+                    parent->maxVect.insert(parent->maxVect.begin()+index, maxVect[bigIndex]);
+                    parent->minVect.insert(parent->minVect.begin()+index, minVect[smallIndex]);
+                } else {
+                    if(parentMax < maxVect[bigIndex]){
+                        parent->maxVect[index] = maxVect[bigIndex];
+                    }
+                    if(parentMin > minVect[smallIndex]){
+                        parent->minVect[index] = minVect[smallIndex];
+                    }                
+                }              
 
-        }
-
-        void updateAux1(){
-            for(int i=0; i<children.size(); ++i){
-                if(i > maxVect.size()){
-                    maxIndex.push_back(i);
-                    maxVect.push_back(children[i]->getLeafSize());
-                } else maxVect[i] = children[i]->getLeafSize();
             }
+            printf("Parent maxVect: ");
+            for(int m : parent->maxVect) printf("%i ", m);
+            printf("\n");
+
+            printf("Parent minVect: ");
+            for(int m : parent->minVect) printf("%i ", m);
+            printf("\n");
+
         }
 
         /*
@@ -256,8 +258,8 @@ class Node{
 
             int rightIndex = parent->findChild(newRight->keys[0]);
             parent->insertChild(newRight, rightIndex);
-            //updateAux();
-            //newRight->updateAux();
+            updateParentAux();
+            newRight->updateParentAux();
         }
 
         /*
@@ -266,16 +268,17 @@ class Node{
          *------------------------------------------------------------------------
         */
 
-        void merge(int threshold){
+        void merge(int threshold, bool leaf){
             Node* sibling = getLeftSibling();
-            int keyIndex = 0, childIndex = 0, buffIndex = 0;
-            if(sibling == this){ //|| sibling->keys.size() > threshold
+            int keyIndex = 0, childIndex = 0, buffIndex = 0, auxIndex = 0;
+            if(sibling == this || (leaf && sibling->keys.size() > threshold)){
                 sibling = getRightSibling();
                 keyIndex = keys.size();
                 childIndex = children.size();
                 buffIndex = buffer.size();
+                auxIndex = maxVect.size();
             }
-            //if(sibling->keys.size() > threshold) return; // Don't merge if sibling has enough keys
+            if(leaf && sibling->keys.size() > threshold) return; // Don't merge if sibling has enough keys
             // Merging keys and children into current node
             keys.insert(keys.begin()+keyIndex, sibling->keys.begin(), sibling->keys.end());
             for(Node* child : sibling->children){
@@ -288,6 +291,7 @@ class Node{
             sibling->buffer.clear();
 
             // Deleting merged node from it's parent's children
+            int siblingIndex = sibling->myIndex();
             int keyDownIndex = std::max(myIndex()-1, 0);
             if(keyDownIndex == parent->keys.size()) --keyDownIndex;
             int mergedIndex = parent->findChild(sibling->keys[0]);
@@ -300,6 +304,11 @@ class Node{
                 keys.insert(keys.begin()+insertIndex, keyDown);
             }
             parent->keys.erase(parent->keys.begin()+keyDownIndex);
-            //updateAux();   
+            parent->maxVect.erase(parent->maxVect.begin()+siblingIndex);
+            parent->minVect.erase(parent->minVect.begin()+siblingIndex);
+            if(!isMicroLeaf()) {
+                maxVect.insert(maxVect.begin()+auxIndex, sibling->maxVect.begin(), sibling->maxVect.end());
+                minVect.insert(minVect.begin()+auxIndex, sibling->minVect.begin(), sibling->minVect.end());
+            }
         }
     };

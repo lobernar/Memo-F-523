@@ -25,13 +25,13 @@ class Node{
         Node(Node* parentIn, std::vector<Node*> childrenIn, std::vector<int> keysIn): parent(parentIn), children(childrenIn), keys(keysIn){
             //DISK-WRITE
             buffer = std::vector<Message>{};
-            maxVect = {0}, minVect = {0};
+            maxVect = {0}, minVect = {INT16_MAX};
         }
         
         Node(Node* parentIn, std::vector<Node*> childrenIn, std::vector<int> keysIn, std::vector<Message> buffIn): parent(parentIn), 
             children(childrenIn), keys(keysIn), buffer(buffIn){
             //DISK-WRITE
-            maxVect = {0}, minVect = {0};
+            maxVect = {0}, minVect = {INT16_MAX};
         }
         
         /*
@@ -51,7 +51,11 @@ class Node{
             std::cout << "Buffer: [ ";
             for(Message msg:buffer) std::cout << msg.key << " "; 
             
-            std::cout << "]" << std::endl;
+            std::cout << "] ";
+
+            printf("Max vect: ");
+            for(int val : maxVect) printf("%i, ", val);
+            printf("\n");
 
             // enter the next tree level
             if(!isMicroLeaf()){
@@ -95,7 +99,6 @@ class Node{
             for(Message msg : buffer) {
                 if(msg.op != DELETE) ++res;
             }
-            //printf("Leaf size: %i\n", res);
             return res;
         }
 
@@ -104,27 +107,12 @@ class Node{
         }
 
         int getMinLeafIndex() {
-            int minElement = minVect[0];
-            int minIndex = 0;
-            for (int i = 1; i < minVect.size(); ++i) {
-                if (minVect[i] < minElement) {
-                    minElement = minVect[i];
-                    minIndex = i;
-                }
-            }
-            //return minIndex;
             return std::min_element(minVect.begin(), minVect.end()) - minVect.begin();
         }
-
-
 
         void insertChild(Node* child, int index) {children.insert(children.begin()+index, child);}
 
         void insertKey(int key, int index) {keys.insert(keys.begin()+index, key);}
-
-        double log2B(int a, int B){ return pow(log2(a), 2) / pow(log2(B), 2);}
-
-        double logB(int a, int B) {return log2(a) / log2(B);}
 
         int findChild(int k){
             int n = keys.size();
@@ -133,9 +121,7 @@ class Node{
             return i;
         }
 
-        int myIndex(){
-            return (keys.size() > 0) ? parent->findChild(keys[0]) : 0;
-        }
+        int myIndex() {return (keys.size() > 0) ? parent->findChild(keys[0]) : 0;}
 
         int findFlushingChild(){
             if(keys.empty()) return 0;
@@ -180,44 +166,52 @@ class Node{
             }
         }
 
+        // void updateParentAux(){
+        //     int index = myIndex();
+        //     if(isMicroRoot()) {    
+        //         int size = getLeafSize();
+        //         printf("Leaf size = %i\n", size);
+        //         if(index + 1 > parent->maxVect.size()){ // Split case
+        //             parent->maxVect.push_back(size);
+        //             parent->minVect.push_back(size);
+        //         } else { // Usual case
+        //             parent->maxVect[index] = size;
+        //             parent->minVect[index] = size;
+        //         }
+        //         printf("Updated parent maxVect: %i\n", parent->maxVect[index]);
+        //     } else if(!isMicroLeaf()) {
+        //         int bigIndex = getMaxLeafIndex();
+        //         int smallIndex = getMinLeafIndex();
+        //         int parentMax = parent->maxVect[index];
+        //         int parentMin = parent->minVect[index];
+        //         if(index + 1 > parent->maxVect.size()){
+        //             parent->maxVect.push_back(maxVect[bigIndex]);
+        //             parent->minVect.push_back(minVect[smallIndex]);
+        //         } else {
+        //             if(parentMax < maxVect[bigIndex]){
+        //                 parent->maxVect[index] = maxVect[bigIndex];
+        //             }
+        //             if(parentMin > minVect[smallIndex]){
+        //                 parent->minVect[index] = minVect[smallIndex];
+        //             }                
+        //         }              
+
+        //     }
+        // }
         void updateParentAux(){
             int index = myIndex();
             if(isMicroRoot()) {    
                 int size = getLeafSize();
-                if(index + 1 > parent->maxVect.size()){ // Split case
-                    parent->maxVect.insert(parent->maxVect.begin()+index, size);
-                    parent->minVect.insert(parent->minVect.begin()+index, size);
-                } else { // Usual case
-                    parent->maxVect[index] = size;
-                    parent->minVect[index] = size;
-                }
-                printf("Leaf size = %i\n", size);
+                parent->maxVect[index] = size;
+                parent->minVect[index] = size;
             } else if(!isMicroLeaf()) {
                 int bigIndex = getMaxLeafIndex();
                 int smallIndex = getMinLeafIndex();
                 int parentMax = parent->maxVect[index];
                 int parentMin = parent->minVect[index];
-                if(index + 1 > parent->maxVect.size()){
-                    parent->maxVect.insert(parent->maxVect.begin()+index, maxVect[bigIndex]);
-                    parent->minVect.insert(parent->minVect.begin()+index, minVect[smallIndex]);
-                } else {
-                    if(parentMax < maxVect[bigIndex]){
-                        parent->maxVect[index] = maxVect[bigIndex];
-                    }
-                    if(parentMin > minVect[smallIndex]){
-                        parent->minVect[index] = minVect[smallIndex];
-                    }                
-                }              
-
+                parent->maxVect[index] = maxVect[bigIndex];
+                parent->minVect[index] = minVect[smallIndex];                        
             }
-            printf("Parent maxVect: ");
-            for(int m : parent->maxVect) printf("%i ", m);
-            printf("\n");
-
-            printf("Parent minVect: ");
-            for(int m : parent->minVect) printf("%i ", m);
-            printf("\n");
-
         }
 
         /*
@@ -228,6 +222,8 @@ class Node{
 
         void split(){
             // Idea: keep "this" as new left node and only create new right node + delete appropriate children/keys from "this"
+            printf("Splitting ");
+            printKeys();
             int half = keys.size()/2;
             int keyUp = keys[half];
             // Push key to parent (or create new root)
@@ -258,8 +254,22 @@ class Node{
 
             int rightIndex = parent->findChild(newRight->keys[0]);
             parent->insertChild(newRight, rightIndex);
-            updateParentAux();
-            newRight->updateParentAux();
+
+            // Handle min/max vectors
+            if(!isMicroLeaf()){
+                parent->maxVect.insert(parent->maxVect.begin() + rightIndex, 0);
+                parent->minVect.insert(parent->minVect.begin() + rightIndex, INT16_MAX);
+                if(!isMicroRoot()){
+                    std::vector<int> newMaxVect = {maxVect.begin()+half+1, maxVect.end()};
+                    std::vector<int> newMinVect = {minVect.begin()+half+1, minVect.end()};
+                    maxVect.erase(maxVect.begin()+half+1, maxVect.end());
+                    minVect.erase(minVect.begin()+half+1, minVect.end());
+                    newRight->maxVect = newMaxVect;
+                    newRight->minVect = newMinVect;
+                }    
+                updateParentAux();
+                newRight->updateParentAux();    
+            }
         }
 
         /*
@@ -269,6 +279,8 @@ class Node{
         */
 
         void merge(int threshold, bool leaf){
+            printf("Merging ");
+            printKeys();
             Node* sibling = getLeftSibling();
             int keyIndex = 0, childIndex = 0, buffIndex = 0, auxIndex = 0;
             if(sibling == this || (leaf && sibling->keys.size() > threshold)){
@@ -297,18 +309,21 @@ class Node{
             int mergedIndex = parent->findChild(sibling->keys[0]);
             parent->children.erase(parent->children.begin()+mergedIndex);
 
-            //Move median key in merged node
+            // Move median key in merged node
             if(!isMicroLeaf()) {    
                 int insertIndex = findChild(parent->keys[keyDownIndex]);
                 int keyDown = parent->keys[keyDownIndex];
                 keys.insert(keys.begin()+insertIndex, keyDown);
             }
             parent->keys.erase(parent->keys.begin()+keyDownIndex);
+
+            // Handle min/max vectors
             parent->maxVect.erase(parent->maxVect.begin()+siblingIndex);
             parent->minVect.erase(parent->minVect.begin()+siblingIndex);
-            if(!isMicroLeaf()) {
+            if(!isMicroRoot() && !isMicroLeaf()) {
                 maxVect.insert(maxVect.begin()+auxIndex, sibling->maxVect.begin(), sibling->maxVect.end());
                 minVect.insert(minVect.begin()+auxIndex, sibling->minVect.begin(), sibling->minVect.end());
             }
+            if(!isMicroLeaf()) updateParentAux();
         }
     };

@@ -123,7 +123,8 @@ class BdTree{
             std::cout << "Key not in tree\n";
             return;
         }
-        node->keys.erase(node->keys.begin()+index); // Remove from micro-leaf
+        // Remove from micro-leaf
+        node->keys.erase(node->keys.begin()+index); 
         if(node->keys.size() < B*logB(Nestimate)/2) node->merge((B*logB(Nestimate))/2, false);
         --N;
     }
@@ -163,12 +164,13 @@ class BdTree{
                 else child->buffer.push_back(msg);
             } else ++it;
         }
-        while(child->buffer.size() > ceil((double) B/Bdelta)) flush(child); // Not sure about this
         if(!child->isMicroLeaf()) child->annihilateMatching(); // Annihilate matching ins/del operations
+        while(!child->isMicroRoot() && child->buffer.size() > ceil((double) B/Bdelta)) flush(child); // Not sure about this
         if(child->isMicroRoot()) {
-            if(child->buffer.size() > (B/Bdelta)*logB(Nestimate)) flush(child);
+            while(child->buffer.size() > (B/Bdelta)*logB(Nestimate)) flush(child);
             Node* curr = child;
             while(curr != root) {
+                printf("Updating Aux while flushing\n");
                 curr->updateParentAux();
                 curr = curr->parent;
             }
@@ -198,7 +200,6 @@ class BdTree{
             n1 = n1->children[nextIndex];
             if(splitPhase) printf("Moving n1 to child %i \n", nextIndex);
             ++blockTransfers;
-            
         }
         printf("Moved n1 to microroot\n");
         // Split/merge micro-root
@@ -310,6 +311,7 @@ class BdTree{
                     splitMerged = true;
                     blockTransfers += 2;
                     ++currStep;
+                    printTree();
                     pause();
                 }
                 else if(!splitPhase && !root->keys.empty() && n1->getLeafSize() <= 2*B*pow(logB(Nestimate), 2)){
@@ -324,6 +326,7 @@ class BdTree{
                     }
                     splitMerged = true;
                     ++currStep;
+                    //printTree();
                     pause();
                 } else currStep = 14; // Go to last step
                 break;
@@ -354,6 +357,10 @@ class BdTree{
                     ++currStep;
                     pause();
                 } else ++currStep;
+                if(n1 != root){
+                    n1->updateParentAux();
+                } 
+                printTree();
                 break;
             case 5: // Set n2 to n1
                 n2 = n1;
@@ -383,6 +390,7 @@ class BdTree{
                 break;
             case 9: // Update auxiliary information
                 if(n3 != root){
+                    printf("Updating aux in n3\n");
                     n3->updateParentAux();
                     n3 = n3->parent;
                     ++blockTransfers;
@@ -393,7 +401,7 @@ class BdTree{
                 if(root->buffer.size() > B/Bdelta) {
                     n5 = root;
                     ++currStep;
-                } else currStep = 14;
+                } else currStep = 3;
                 break;
             case 11: // Flush from root
                 if(n5->buffer.size() > B/Bdelta){
@@ -423,7 +431,7 @@ class BdTree{
                 splitPhase = !splitPhase;
                 currStep = 0;
                 splitMerged = false;
-                printf("Finished one cycle with %i block transfers\n", blockTransfers);
+                //printf("Finished one cycle with %i block transfers\n", blockTransfers);
                 blockTransfers = 0;
                 break;
             default:
@@ -433,7 +441,7 @@ class BdTree{
     }
 
     void pause(){
-        printf("I/O occured at step %i, pausing execution...\n", currStep);
+        //printf("I/O occured at step %i, pausing execution...\n", currStep);
         paused = true;
     }
 

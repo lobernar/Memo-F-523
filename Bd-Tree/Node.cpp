@@ -166,38 +166,6 @@ class Node{
             }
         }
 
-        // void updateParentAux(){
-        //     int index = myIndex();
-        //     if(isMicroRoot()) {    
-        //         int size = getLeafSize();
-        //         printf("Leaf size = %i\n", size);
-        //         if(index + 1 > parent->maxVect.size()){ // Split case
-        //             parent->maxVect.push_back(size);
-        //             parent->minVect.push_back(size);
-        //         } else { // Usual case
-        //             parent->maxVect[index] = size;
-        //             parent->minVect[index] = size;
-        //         }
-        //         printf("Updated parent maxVect: %i\n", parent->maxVect[index]);
-        //     } else if(!isMicroLeaf()) {
-        //         int bigIndex = getMaxLeafIndex();
-        //         int smallIndex = getMinLeafIndex();
-        //         int parentMax = parent->maxVect[index];
-        //         int parentMin = parent->minVect[index];
-        //         if(index + 1 > parent->maxVect.size()){
-        //             parent->maxVect.push_back(maxVect[bigIndex]);
-        //             parent->minVect.push_back(minVect[smallIndex]);
-        //         } else {
-        //             if(parentMax < maxVect[bigIndex]){
-        //                 parent->maxVect[index] = maxVect[bigIndex];
-        //             }
-        //             if(parentMin > minVect[smallIndex]){
-        //                 parent->minVect[index] = minVect[smallIndex];
-        //             }                
-        //         }              
-
-        //     }
-        // }
         void updateParentAux(){
             int index = myIndex();
             if(isMicroRoot()) {    
@@ -222,8 +190,6 @@ class Node{
 
         void split(){
             // Idea: keep "this" as new left node and only create new right node + delete appropriate children/keys from "this"
-            printf("Splitting ");
-            printKeys();
             int half = keys.size()/2;
             int keyUp = keys[half];
             // Push key to parent (or create new root)
@@ -278,19 +244,18 @@ class Node{
          *------------------------------------------------------------------------
         */
 
-        void merge(int threshold, bool leaf){
-            printf("Merging ");
-            printKeys();
+        void merge(int threshold){
+            // Maybe replace leaf variable with isMicroRoot()?
             Node* sibling = getLeftSibling();
             int keyIndex = 0, childIndex = 0, buffIndex = 0, auxIndex = 0;
-            if(sibling == this || (leaf && sibling->keys.size() > threshold)){
+            if(sibling == this || (isMicroRoot() && sibling->keys.size() > threshold)){
                 sibling = getRightSibling();
                 keyIndex = keys.size();
                 childIndex = children.size();
                 buffIndex = buffer.size();
                 auxIndex = maxVect.size();
             }
-            if(leaf && sibling->keys.size() > threshold) return; // Don't merge if sibling has enough keys
+            if(isMicroRoot() && sibling->keys.size() > threshold) return; // Don't merge if sibling has enough keys
             // Merging keys and children into current node
             keys.insert(keys.begin()+keyIndex, sibling->keys.begin(), sibling->keys.end());
             for(Node* child : sibling->children){

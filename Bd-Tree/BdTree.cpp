@@ -6,6 +6,7 @@ class BdTree{
     unsigned B;
     float delta;
     unsigned Bdelta;
+    unsigned height;
     Node* root;
     unsigned blockTransfers;
     int N; // Number of elements in the tree
@@ -44,6 +45,7 @@ class BdTree{
         splitPhase = true;  
         splitMerged = false;
         paused = false;
+        height = ci*logB(Nestimate);
         root = new Node(NULL, {}, {});
         initTree();
         printTree();
@@ -66,29 +68,38 @@ class BdTree{
         if(root != NULL) root->printBT("", false);
     }
 
-    void generateDotFile(){
-        std::ofstream dotFile("betree.dot");
-        dotFile << "digraph BTree {" << std::endl;
-        dotFile << "node [shape = record,height=.5];" << std::endl;
-        generateDotNode(root, dotFile);
-        dotFile << "}" <<std::endl;
+    void generateSVGFile(){
+        std::ofstream svgFile("Bdtree.svg");
+        svgFile << "<svg width=\"1700\" height=\"1000\" xmlns=\"http://www.w3.org/2000/svg\">\n";
+        generateSVGNode(root, svgFile, 500, 50, 400, 60);
+        svgFile << "</svg>\n";
     }
 
-    // Function to generate a DOT file for a B-tree
-    void generateDotNode(Node* node, std::ofstream& dotFile) {
+    void generateSVGNode(Node* node, std::ostream& out, int x, int y, int xOffset, int yOffset) {
         if (node) {
-            std::string nodeLabel = "node_" + std::to_string(reinterpret_cast<uintptr_t>(node));
-            dotFile << nodeLabel << "[label = \"<f0>";
-            
-            for (size_t i = 0; i < node->keys.size(); ++i) {
-                dotFile << " |" << node->keys[i] << "|<f" << (i + 1) << ">";
+            int totalWidth = node->keys.size()*40;
+
+            // Draw a single rectangle for the keys of the current node
+            out << "<rect x=\"" << x - totalWidth / 2 << "\" y=\"" << y - 20 << "\" width=\"" << totalWidth << "\" height=\"40\" fill=\"white\" stroke=\"black\"/>\n";
+
+            // Write keys inside the rectangle
+            int currentX = x - totalWidth / 2 + 10; // Initial x-position inside the rectangle
+            for (int i = 0; i < node->keys.size(); ++i) {
+                out << "<text x=\"" << currentX << "\" y=\"" << y << "\" text-anchor=\"start\" dominant-baseline=\"middle\">" << node->keys[i] << "</text>\n";
+                currentX += 40; // Adjust the spacing between keys as needed
             }
 
-            dotFile << "\"];" << std::endl;
+            // Draw lines to the children
+            for (int i = 0; i < node->children.size(); ++i) {
+                // Calculate the position of the child subtree
+                int childX = x - totalWidth / 2 + i * xOffset + totalWidth / 2;
+                int childY = y + yOffset;
 
-            for (size_t i = 0; i < node->children.size(); ++i) {
-                generateDotNode(node->children[i], dotFile);
-                dotFile << "\"" << nodeLabel << "\":f" << i << " -> \"node_" << reinterpret_cast<uintptr_t>(node->children[i]) << "\";" << std::endl;
+                // Draw a line from the current node to the child
+                out << "<line x1=\"" << x + i * totalWidth / node->children.size() << "\" y1=\"" << y + 20 << "\" x2=\"" << childX << "\" y2=\"" << childY - 20 << "\" stroke=\"black\"/>\n";
+
+                // Recursively draw the child
+                generateSVGNode(node->children[i], out, childX, childY, xOffset / 2, yOffset);
             }
         }
     }
@@ -125,7 +136,7 @@ class BdTree{
         }
         // Remove from micro-leaf
         node->keys.erase(node->keys.begin()+index); 
-        if(node->keys.size() < B*logB(Nestimate)/2) node->merge((B*logB(Nestimate))/2, false);
+        if(node->keys.size() < B*logB(Nestimate)/2) node->merge((B*logB(Nestimate))/2);
         --N;
     }
 
@@ -198,41 +209,32 @@ class BdTree{
         while(!n1->isMicroRoot()){
             int nextIndex = (splitPhase) ? n1->getMaxLeafIndex() : n1->getMinLeafIndex();
             n1 = n1->children[nextIndex];
-            if(splitPhase) printf("Moving n1 to child %i \n", nextIndex);
             ++blockTransfers;
         }
-        printf("Moved n1 to microroot\n");
         // Split/merge micro-root
         if(splitPhase && !n1->keys.empty() && n1->getLeafSize() >= 4*B*pow(logB(Nestimate), 2)) {
-            printf("Splitting micro-root\n");
             n1->split();
-            printTree();
             splitMerged = true;
         }
         else if(!splitPhase && !root->keys.empty() && n1->getLeafSize() <= 2*B*pow(logB(Nestimate), 2)){
-            printf("Merging micro-root\n");
-            n1->merge((B*logB(Nestimate))/2, true);
+            n1->merge((B*logB(Nestimate))/2);
             // Split if resulting node too big
             if(n1->getLeafSize() > 5*B*pow(logB(Nestimate), 2)) {
                 n1->split();
             }
             splitMerged = true;
-            printTree();
         }            
         // Moving n1 up
         while(n1->parent && splitMerged){
-            printf("Moving n1 up\n");
             n1 = n1->parent;
             ++ blockTransfers;
             if(splitPhase && n1->keys.size() > Bdelta) {
-                printf("Splitting while moving n1 up\n");
                 n1->split();
                 fixRoot();
             }
             else if(!splitPhase && n1 != root && n1->keys.size() <= Bdelta/2){
                 // Merging
-                printf("Merging while moving n1 up\n");
-                n1->merge((B*logB(Nestimate))/2, false);
+                n1->merge((B*logB(Nestimate))/2);
                 fixRoot();
             }
             
@@ -311,13 +313,12 @@ class BdTree{
                     splitMerged = true;
                     blockTransfers += 2;
                     ++currStep;
-                    printTree();
                     pause();
                 }
                 else if(!splitPhase && !root->keys.empty() && n1->getLeafSize() <= 2*B*pow(logB(Nestimate), 2)){
                     // Merging
                     printf("Merging micro-root\n");
-                    n1->merge((B*logB(Nestimate))/2, true);
+                    n1->merge((B*logB(Nestimate))/2);
                     blockTransfers += 2;
                     // Split if resulting node too big
                     if(n1->getLeafSize() > 5*B*pow(logB(Nestimate), 2)) {
@@ -326,7 +327,6 @@ class BdTree{
                     }
                     splitMerged = true;
                     ++currStep;
-                    //printTree();
                     pause();
                 } else currStep = 14; // Go to last step
                 break;
@@ -351,7 +351,7 @@ class BdTree{
                 else if(!splitPhase && n1 != root && n1->keys.size() <= Bdelta/2){
                     // Merging
                     printf("Merging while moving n1 up\n");
-                    n1->merge((B*logB(Nestimate))/2, false);
+                    n1->merge((B*logB(Nestimate))/2);
                     fixRoot();
                     blockTransfers += 2;
                     ++currStep;
@@ -360,14 +360,13 @@ class BdTree{
                 if(n1 != root){
                     n1->updateParentAux();
                 } 
-                printTree();
                 break;
             case 5: // Set n2 to n1
                 n2 = n1;
                 ++currStep;
                 break;
             case 6: // Repeated flushing of split/merged node
-                if(n2->buffer.size() > B/Bdelta){
+                if(!n2->isMicroRoot() && n2->buffer.size() > B/Bdelta){
                     printf("Flushing n2 while overfull\n");
                     n3 = n2;
                     ++currStep;
@@ -418,9 +417,8 @@ class BdTree{
                 n5 = n6;
                 currStep = 11;
                 break;
-            case 13: // Update auxiliary information
+            case 13: // Update auxiliary information of n5
                 if(n5 != root){
-                    printf("Moving n5 up and update auxiliary information\n");
                     n5->updateParentAux();
                     n5 = n5->parent;
                     ++blockTransfers;
@@ -428,12 +426,15 @@ class BdTree{
                 } else currStep = 10;
                 break;
             case 14: // Update variables
-                splitPhase = !splitPhase;
+            {   splitPhase = !splitPhase;
                 currStep = 0;
                 splitMerged = false;
-                //printf("Finished one cycle with %i block transfers\n", blockTransfers);
+                printf("Finished one cycle with %i block transfers in tree of height %f\n", blockTransfers, ceil((double) logB(N)));
+                int maxblock = height+height*((Bdelta*(height+Bdelta)) + (Bdelta*(height+Bdelta)));
+                printf("Max number of block transfers: %i\n", maxblock);
                 blockTransfers = 0;
                 break;
+            }
             default:
                 break;
             }  

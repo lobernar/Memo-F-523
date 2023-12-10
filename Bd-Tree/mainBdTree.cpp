@@ -8,7 +8,9 @@ void testCase1(){
     int N = pow(10, 3);
     BdTree t = BdTree(10, DELTA, N);
     for(int i=1; i<=2000; i++) t.insertUpdate(i, INSERT);
-    t.generateDotFile();
+    std::ofstream outFile("btree.svg");
+    outFile << "<svg width=\"1500\" height=\"1200\" xmlns=\"http://www.w3.org/2000/svg\">\n";
+    t.generateSVGFile();
     t.printTree();
 }
 
@@ -19,7 +21,7 @@ void testCase2(){
     int N = pow(10, 6);
     BdTree t = BdTree(50, DELTA, N);
     for(int i=1; i<=200000; i++) t.insertUpdate(i, INSERT);
-    t.printTree();
+    //t.printTree();
 }
 
 int main(){

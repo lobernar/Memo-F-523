@@ -68,38 +68,74 @@ class BdTree{
         if(root != NULL) root->printBT("", false);
     }
 
+    int calculateSubtreeWidth(Node* node) {
+        if (node == nullptr) {
+            return 0;
+        }
+
+        int width = 0;
+        width += (node->keys.size() + 1)*50 + 50*(node->keys.size()-1);
+
+        // Recursively calculate the width of each child node
+        for (int i = 0; i < node->children.size(); ++i) {
+            width += calculateSubtreeWidth(node->children[i]);
+        }
+        return width;
+    }
+
+
     void generateSVGFile(){
         std::ofstream svgFile("Bdtree.svg");
-        svgFile << "<svg width=\"1700\" height=\"1000\" xmlns=\"http://www.w3.org/2000/svg\">\n";
-        generateSVGNode(root, svgFile, 500, 50, 400, 60);
+        int width = calculateSubtreeWidth(root);
+        printf("Root width: %i\n", width);
+        svgFile << "<svg width=\"" << width*3 <<"\" height=\"3000\" xmlns=\"http://www.w3.org/2000/svg\">\n";
+        generateSVGNode(root, svgFile, width, 50, 100, 200);
         svgFile << "</svg>\n";
     }
 
     void generateSVGNode(Node* node, std::ostream& out, int x, int y, int xOffset, int yOffset) {
         if (node) {
-            int totalWidth = node->keys.size()*40;
+            int totalWidth = (node->keys.size() + 1) * 50;
+            int rectX = x;
 
             // Draw a single rectangle for the keys of the current node
-            out << "<rect x=\"" << x - totalWidth / 2 << "\" y=\"" << y - 20 << "\" width=\"" << totalWidth << "\" height=\"40\" fill=\"white\" stroke=\"black\"/>\n";
+            out << "<rect x=\"" << rectX << "\" y=\"" << y - 20 << "\" width=\"" << totalWidth << "\" height=\"35\" fill=\"white\" stroke=\"black\"/>\n";
 
             // Write keys inside the rectangle
-            int currentX = x - totalWidth / 2 + 10; // Initial x-position inside the rectangle
+            int currentX = rectX + 10; // Initial x-position inside the rectangle
             for (int i = 0; i < node->keys.size(); ++i) {
                 out << "<text x=\"" << currentX << "\" y=\"" << y << "\" text-anchor=\"start\" dominant-baseline=\"middle\">" << node->keys[i] << "</text>\n";
-                currentX += 40; // Adjust the spacing between keys as needed
+                currentX += 50; // Adjust the spacing between keys as needed
             }
 
             // Draw lines to the children
             for (int i = 0; i < node->children.size(); ++i) {
-                // Calculate the position of the child subtree
-                int childX = x - totalWidth / 2 + i * xOffset + totalWidth / 2;
+                int childX = rectX+i*(xOffset+totalWidth);
+                // Center the children
+                if(i < node->children.size()/2){
+
+                }
+                //for(int j=0; j<i; ++j) childX += calculateSubtreeWidth(node->children[j]);
+                //for(int j=i+1; j<node->children.size(); ++j) childX -= calculateSubtreeWidth(node->children[j]);
+                // Adjust for the width of the right sibling's subtree, if it exists
+                // if(i > 0){
+                //     int leftSiblingWidth = calculateSubtreeWidth(node->children[i-1]);
+                //     childX += leftSiblingWidth;
+                // }
+                // else 
+                // if (i < node->children.size() - 1) {
+                //     int rightSiblingWidth = calculateSubtreeWidth(node->children[i + 1]); // Assume you have a function to calculate the subtree width
+                //     childX -= rightSiblingWidth;
+                //     printf("Calculated width: %i\n", rightSiblingWidth);
+                // }
+
                 int childY = y + yOffset;
 
                 // Draw a line from the current node to the child
-                out << "<line x1=\"" << x + i * totalWidth / node->children.size() << "\" y1=\"" << y + 20 << "\" x2=\"" << childX << "\" y2=\"" << childY - 20 << "\" stroke=\"black\"/>\n";
+                out << "<line x1=\"" << x + i * totalWidth / (node->keys.size() + 1) << "\" y1=\"" << y + 20 << "\" x2=\"" << childX << "\" y2=\"" << childY - 20 << "\" stroke=\"black\"/>\n";
 
                 // Recursively draw the child
-                generateSVGNode(node->children[i], out, childX, childY, xOffset / 2, yOffset);
+                generateSVGNode(node->children[i], out, childX, childY, xOffset, yOffset);
             }
         }
     }
@@ -136,8 +172,9 @@ class BdTree{
         }
         // Remove from micro-leaf
         node->keys.erase(node->keys.begin()+index); 
-        if(node->keys.size() < B*logB(Nestimate)/2) node->merge((B*logB(Nestimate))/2);
+        if(node->keys.size() < (B*logB(Nestimate))/2) node->merge((B*logB(Nestimate))/2);
         --N;
+        printTree();
     }
 
     void apply(Message msg, Node* node){
@@ -172,7 +209,10 @@ class BdTree{
                 Message msg = *it;
                 it = node->buffer.erase(it);
                 if(child->isMicroLeaf()) apply(msg, child);
-                else child->buffer.push_back(msg);
+                else {
+                    auto it = std::upper_bound(child->buffer.cbegin(), child->buffer.cend(), msg);
+                    child->buffer.insert(it, msg);
+                }
             } else ++it;
         }
         if(!child->isMicroLeaf()) child->annihilateMatching(); // Annihilate matching ins/del operations
@@ -190,7 +230,8 @@ class BdTree{
 
     void insertUpdate(int key, int op){
         Message msg{key, op};
-        root->buffer.push_back(msg);
+        auto it = std::upper_bound(root->buffer.cbegin(), root->buffer.cend(), msg);
+        root->buffer.insert(it, msg);
         while(root->buffer.size() > B/Bdelta) flush(root);
         ++updatesCounter;
         if(updatesCounter == ceil((double)(B/(Bdelta*Bdelta)) / (ci*logB(Nestimate)))){ // pow(logB(Nestimate), 3)
@@ -446,17 +487,34 @@ class BdTree{
         paused = true;
     }
 
-    void predecessor(int q){
+    int predecessor(int q){
         Node* curr = root;
-        std::vector<int> L = {};
         // Go down until micro-root is reached
+        std::vector<int> L = {};
         while(!curr->isMicroRoot()) curr = curr->children[curr->findChild(q)];
+
+        // Store B*logBN greatest insertions
         for(Message msg : curr->buffer){
-            if(msg.op != DELETE && msg.key <= q) L.push_back(msg.key);
+            if(msg.op != DELETE && msg.key <= q) {
+                if(L.size() < B*logB(N)) L.push_back(msg.key);
+                else{
+                    int minIndex = std::min_element(L.begin(), L.end()) - L.begin();
+                    if (L[minIndex] < msg.key) L[minIndex] = msg.key;
+                }
+            }
         }
         for(Node* child : curr->children){
-            for(int key : child->keys) if(key <= q) L.push_back(key);
+            for(int key : child->keys) {
+                if(key <= q){
+                    if(L.size() < B*logB(N)) L.push_back(key);
+                    else{
+                        int minIndex = std::min_element(L.begin(), L.end()) - L.begin();
+                        if (L[minIndex] < key) L[minIndex] = key;
+                    }                
+                } 
+            }
         }
+
         // Visit ancestors and store insertions and deletions <= q
         std::vector<int> L2 = {};
         std::vector<int> Ld = {};
@@ -468,6 +526,34 @@ class BdTree{
             }
         }
 
+        // Get BlogBN largest elements in L and L2
+        std::vector<int> L3 = {};
+        std::vector<int> combined = {};
+        for(int i=0; i<L.size(); i++) combined.push_back(L[i]);
+        for(int i=0; i<L2.size(); i++) combined.push_back(L2[i]);
+        std::sort(combined.begin(), combined.end(), std::greater<int>());
+        L3 = {combined.begin(), combined.begin()+B*logB(N)};
+
+        // Find largest element in L3 not in Ld
+        int res;
+        for(int i=0; i<L3.size(); ++i){
+            bool inLd = false;
+            for(int j=0; j<Ld.size(); ++j){
+                if(Ld[j] == L3[i]){
+                    inLd = true;
+                    break;
+                }
+            }
+            if(!inLd){
+                res = L3[i];
+                break;
+            }
+        }
+        return res;
+    }
+
+    void range(int a, int b){
+        Node* curr = root;
 
     }
 

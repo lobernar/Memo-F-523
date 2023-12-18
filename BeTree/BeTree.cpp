@@ -58,6 +58,68 @@ class BeTree{
 
     double logB(int a) {return log2(a)/log2(B);}
 
+    void fixNode(Node* node){
+        bool split = false;
+        Node* curr = node;
+        while(curr && curr->tooBig(B, Beps)){
+            split = true;
+            curr->split();
+            curr = curr->parent;
+            blockTransfers += 2;
+        }
+        if(root->parent != NULL) root = root->parent;
+        printf("Fixing node too small\n");
+        curr = node;
+        while(!split && curr && curr->tooSmall(B, Beps) && curr->parent){
+            Node* leftSibling = curr->getLeftSibling(); //DISK READ
+            Node* rightSibling = curr->getRightSibling(); //DISK READ
+            blockTransfers += 2;
+            // Borror from left sibling
+            if(leftSibling != curr && leftSibling && leftSibling->bigEnough(B, Beps)){
+                printf("Borrow left\n");
+                curr->borrowLeft(leftSibling);
+            }
+            // Borrow from right sibling
+            else if(rightSibling != curr && rightSibling && rightSibling->bigEnough(B, Beps)){
+                printf("Borrow right\n");
+                curr->borrowRight(rightSibling);
+            }
+            // Merge with one of the sibling
+            else{
+                printf("Merge\n");
+                curr->merge();
+            }
+
+            // Update parent key if needed
+            for(int i = 0; i<curr->keys.size(); ++i){
+                if(!curr->isLeaf() && curr->children[0]->isLeaf() && curr->keys[i] != curr->children[i]->keys.back()) 
+                                            curr->keys[i] = curr->children[i]->keys.back();
+            }
+            // Check buffer overflow
+            bool cascades = false;
+            while(curr->buffer.size() > B-Beps){
+                printf("Flushing cascades!\n");
+                Node* tmp = curr;
+                cascades = true;
+                flush(tmp);
+                printf("After flushing cascades\n");
+            } 
+            if(cascades){
+                printf("After flushing cascades\n");
+                curr->printKeys();
+            }
+            curr = curr->parent;
+        }
+        if(root->keys.size()==0) {
+            root->children[0]->buffer.insert(root->children[0]->buffer.begin(), root->buffer.begin(), root->buffer.end());
+            root->buffer.clear();
+            root = root->children[0];
+            root->setParent(NULL);
+            for(int i=1; i<root->children.size(); i++) root->children[i]->setParent(root);
+            while(root->buffer.size() > B-Beps) flush(root);
+        }
+    }
+
     void insert(Node* node, int key){
         int index = node->findChild(key);
         node->insertKey(key, index);
@@ -75,6 +137,7 @@ class BeTree{
 
     void remove(Node* node, int key){
         int index = node->findChild(key);
+        printf("Deleting %i\n", key);
         // Key not in tree
         if(node->keys[index] != key){
             std::cout << "Key not in tree\n";
@@ -92,14 +155,17 @@ class BeTree{
             blockTransfers += 2;
             // Borror from left sibling
             if(leftSibling != curr && leftSibling && leftSibling->bigEnough(B, Beps)){
+                printf("Borrow left\n");
                 curr->borrowLeft(leftSibling);
             }
             // Borrow from right sibling
             else if(rightSibling != curr && rightSibling && rightSibling->bigEnough(B, Beps)){
+                printf("Borrow right\n");
                 curr->borrowRight(rightSibling);
             }
             // Merge with one of the sibling
             else{
+                printf("Merge\n");
                 curr->merge();
             }
 
@@ -109,10 +175,26 @@ class BeTree{
                                             curr->keys[i] = curr->children[i]->keys.back();
             }
             // Check buffer overflow
-            while(curr->buffer.size() > B-Beps) flush(curr);
+            if(key < 10) {
+                printTree();
+                curr->printKeys();
+            }
+            bool cascades = false;
+            while(curr->buffer.size() > B-Beps){
+                printf("Flushing cascades!\n");
+                Node* tmp = curr;
+                cascades = true;
+                flush(tmp);
+                printf("After flushing cascades\n");
+            } 
+            if(cascades){
+                printf("After flushing cascades\n");
+                curr->printKeys();
+            }
             curr = curr->parent;
         }
         --N;
+
     }
 
     void apply(Message msg, Node* node){
@@ -142,6 +224,8 @@ class BeTree{
     }
 
     void flush(Node* node){
+        // First apply all the updates to a node and the split/merge
+        // OR Split/merge while flushing?
         // Flushes at least O(B^(1-eps)) updates (pigeonhole principle)
         int childIndex = node->findFlushingChild();
         Node* child = node->children[childIndex];
@@ -151,17 +235,33 @@ class BeTree{
                 Message msg = *it;
                 it = node->buffer.erase(it);
                 if(child->isLeaf()) {
-                    apply(msg, child);
-                    // Need to update variables
-                    it = node->buffer.begin(); 
-                    childIndex = node->findFlushingChild();
-                    child = node->children[childIndex];
-                } else child->buffer.push_back(msg);
+                    // apply(msg, child);
+                    // // Need to update variables
+                    // it = node->buffer.begin(); 
+                    // childIndex = node->findFlushingChild();
+                    // child = node->children[childIndex];
+                    int index = child->findChild(msg.key);
+                    if(msg.op==INSERT) {
+                        printf("Inserting key: %i\n", msg.key);
+                        child->insertKey(msg.key, index);
+                    }
+                    else if(msg.op==DELETE) {
+                        printf("Deleting %i\n", msg.key);
+                        child->keys.erase(child->keys.begin()+index);
+                    }
+                } else {
+                    auto it = std::upper_bound(child->buffer.cbegin(), child->buffer.cend(), msg);
+                    child->buffer.insert(it, msg);
+                }
             } else ++it;
         }
         if(!child->isLeaf()) child->annihilateMatching(); // Annihilate matching ins/del operations
-        // Flush child if needed (can cause flushing cascades)
-        while(child->buffer.size() > B-Beps) flush(child);
+        fixNode(child);
+        // Flush child if needed
+        while(child->buffer.size() > B-Beps){
+            printf("Flushing while flushing\n");
+            flush(child);
+        } 
     }
 
     void insertUpdate(int key, int op){
@@ -181,7 +281,8 @@ class BeTree{
         else {
             if(root->isLeaf()) apply(msg, root); // If root is a leaf -> instantly apply update
             else{ // If root is not a leaf -> add msg to its buffer
-                root->buffer.push_back(msg);
+                auto it = std::upper_bound(root->buffer.cbegin(), root->buffer.cend(), msg);
+                root->buffer.insert(it, msg);
                 if(root->buffer.size() > B-Beps) flush(root);         
             }           
         }

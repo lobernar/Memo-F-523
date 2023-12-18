@@ -1,10 +1,16 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <algorithm>
 
 struct Message{
     int key;
     int op;
+
+    bool operator<(const Message& other) const {
+        return key < other.key;
+    }
+
 };
 
 class Node{

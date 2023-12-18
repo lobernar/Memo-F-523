@@ -11,6 +11,10 @@
 struct Message{
     int key;
     int op;
+
+    bool operator<(const Message& other) const {
+        return key < other.key;
+    }
 };
 
 class Node{
@@ -51,11 +55,11 @@ class Node{
             std::cout << "Buffer: [ ";
             for(Message msg:buffer) std::cout << msg.key << " "; 
             
-            std::cout << "] ";
+            std::cout << "] \n";
 
-            printf("Max vect: ");
-            for(int val : maxVect) printf("%i, ", val);
-            printf("\n");
+            // printf("Max vect: ");
+            // for(int val : maxVect) printf("%i, ", val);
+            // printf("\n");
 
             // enter the next tree level
             if(!isMicroLeaf()){

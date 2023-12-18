@@ -79,6 +79,7 @@ void testCase4(){
     BeTree t = BeTree(9, EPS);
     for(int i=1; i<=5000; i++) t.insertUpdate(i, INSERT);
     t.printTree();
+    printf("Finished Inserting\n");
     for(int i=5000; i>0; i--) t.insertUpdate(i, DELETE);
     t.printTree();
 }
@@ -120,6 +121,15 @@ void testCase7(){
     //t.printTree();
 }
 
+void testCase8(){
+    // Flushing cascades
+    BeTree t = BeTree(10, EPS);
+    for(int i=1; i<=2000; i++) t.insertUpdate(i, INSERT);
+    t.printTree();
+    for(int i=200; i>0; i--) t.insertUpdate(i, DELETE);
+    t.printTree();
+}
+
 
 int main(){
     printf("\n------------------------------TEST CASE 1------------------------------\n\n");
@@ -135,7 +145,9 @@ int main(){
     printf("\n------------------------------TEST CASE 6--------------------------\n\n");
     testCase6();
     printf("\n------------------------------TEST CASE 7--------------------------\n\n");
-    //testCase7();
+    testCase7();
+    printf("\n------------------------------TEST CASE 8--------------------------\n\n");
+    testCase8();
 
 
     return 0;

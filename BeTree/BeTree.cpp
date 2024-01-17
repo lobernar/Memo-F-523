@@ -11,12 +11,11 @@ class BeTree{
     float eps;
     unsigned Beps;
     Node* root;
-    std::vector<Message> initBuff;
     unsigned blockTransfers;
     int N;
 
     BeTree(unsigned BIn, float epsIn): B(BIn), eps(epsIn){
-        root = NULL;
+        root = new Node(NULL, {}, {});
         Beps = std::floor(pow(B, eps));
         blockTransfers = 0;
         N = 0;
@@ -56,39 +55,34 @@ class BeTree{
         }
     }
 
-    double logB(int a) {return log2(a)/log2(B);}
+    void fixLeaf(Node* node){
+        if(node->tooBig(B, Beps)) fixBigLeaf(node);
+        else if (node->tooSmall(B, Beps)) fixSmallLeaf(node);
+    }
 
-    void fixNode(Node* node){
-        bool split = false;
+    void fixBigLeaf(Node* node){
         Node* curr = node;
         while(curr && curr->tooBig(B, Beps)){
-            split = true;
             curr->split();
             curr = curr->parent;
             blockTransfers += 2;
         }
+        // Fixing root case
         if(root->parent != NULL) root = root->parent;
-        printf("Fixing node too small\n");
-        curr = node;
-        while(!split && curr && curr->tooSmall(B, Beps) && curr->parent){
+    }
+
+    void fixSmallLeaf(Node* node){
+        Node* curr = node;
+        while(curr && curr->tooSmall(B, Beps) && curr->parent){
             Node* leftSibling = curr->getLeftSibling(); //DISK READ
             Node* rightSibling = curr->getRightSibling(); //DISK READ
             blockTransfers += 2;
             // Borror from left sibling
-            if(leftSibling != curr && leftSibling && leftSibling->bigEnough(B, Beps)){
-                printf("Borrow left\n");
-                curr->borrowLeft(leftSibling);
-            }
+            if(leftSibling != curr && leftSibling && leftSibling->bigEnough(B, Beps)) curr->borrowLeft(leftSibling);
             // Borrow from right sibling
-            else if(rightSibling != curr && rightSibling && rightSibling->bigEnough(B, Beps)){
-                printf("Borrow right\n");
-                curr->borrowRight(rightSibling);
-            }
+            else if(rightSibling != curr && rightSibling && rightSibling->bigEnough(B, Beps)) curr->borrowRight(rightSibling);
             // Merge with one of the sibling
-            else{
-                printf("Merge\n");
-                curr->merge();
-            }
+            else curr->merge();
 
             // Update parent key if needed
             for(int i = 0; i<curr->keys.size(); ++i){
@@ -96,20 +90,14 @@ class BeTree{
                                             curr->keys[i] = curr->children[i]->keys.back();
             }
             // Check buffer overflow
-            bool cascades = false;
             while(curr->buffer.size() > B-Beps){
                 printf("Flushing cascades!\n");
                 Node* tmp = curr;
-                cascades = true;
                 flush(tmp);
-                printf("After flushing cascades\n");
-            } 
-            if(cascades){
-                printf("After flushing cascades\n");
-                curr->printKeys();
             }
             curr = curr->parent;
         }
+        // Fixing root case
         if(root->keys.size()==0) {
             root->children[0]->buffer.insert(root->children[0]->buffer.begin(), root->buffer.begin(), root->buffer.end());
             root->buffer.clear();
@@ -118,83 +106,28 @@ class BeTree{
             for(int i=1; i<root->children.size(); i++) root->children[i]->setParent(root);
             while(root->buffer.size() > B-Beps) flush(root);
         }
+
     }
 
     void insert(Node* node, int key){
         int index = node->findChild(key);
         node->insertKey(key, index);
-        ++blockTransfers; // DISK-WRITE
-        Node* curr = node;
-        // Check if node needs to be split
-        while(curr && curr->tooBig(B, Beps)){
-            curr->split();
-            curr = curr->parent;
-            blockTransfers += 2;
-        }
-        //printf("Inserting in a Be-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double)log2(N)/log2(B)), N, B, *blockTransfers);
+        ++blockTransfers;
         ++N;
     }
 
     void remove(Node* node, int key){
         int index = node->findChild(key);
-        printf("Deleting %i\n", key);
         // Key not in tree
         if(node->keys[index] != key){
-            std::cout << "Key not in tree\n";
+            printf("Key not in tree\n");
             return;
         }
         node->keys.erase(node->keys.begin()+index); // Remove from leaf
-        ++blockTransfers; // DISK-WRITE
+        ++blockTransfers;
         // Update parent key if needed
-        if(node->isLeaf() && node != root) node->updateParent(key);
-        Node* curr = node;
-        // Check if node becomes too small
-        while(curr && curr->tooSmall(B, Beps) && curr->parent){
-            Node* leftSibling = curr->getLeftSibling(); //DISK READ
-            Node* rightSibling = curr->getRightSibling(); //DISK READ
-            blockTransfers += 2;
-            // Borror from left sibling
-            if(leftSibling != curr && leftSibling && leftSibling->bigEnough(B, Beps)){
-                printf("Borrow left\n");
-                curr->borrowLeft(leftSibling);
-            }
-            // Borrow from right sibling
-            else if(rightSibling != curr && rightSibling && rightSibling->bigEnough(B, Beps)){
-                printf("Borrow right\n");
-                curr->borrowRight(rightSibling);
-            }
-            // Merge with one of the sibling
-            else{
-                printf("Merge\n");
-                curr->merge();
-            }
-
-            // Update parent key if needed
-            for(int i = 0; i<curr->keys.size(); ++i){
-                if(!curr->isLeaf() && curr->children[0]->isLeaf() && curr->keys[i] != curr->children[i]->keys.back()) 
-                                            curr->keys[i] = curr->children[i]->keys.back();
-            }
-            // Check buffer overflow
-            if(key < 10) {
-                printTree();
-                curr->printKeys();
-            }
-            bool cascades = false;
-            while(curr->buffer.size() > B-Beps){
-                printf("Flushing cascades!\n");
-                Node* tmp = curr;
-                cascades = true;
-                flush(tmp);
-                printf("After flushing cascades\n");
-            } 
-            if(cascades){
-                printf("After flushing cascades\n");
-                curr->printKeys();
-            }
-            curr = curr->parent;
-        }
+        if(node != root) node->updateParent(key);
         --N;
-
     }
 
     void apply(Message msg, Node* node){
@@ -220,12 +153,11 @@ class BeTree{
                 break;
             default: break;
         }
+        fixLeaf(node);
         blockTransfers = 0;
     }
 
-    void flush(Node* node){
-        // First apply all the updates to a node and the split/merge
-        // OR Split/merge while flushing?
+    void flush(Node* node, int* blockTr=0){
         // Flushes at least O(B^(1-eps)) updates (pigeonhole principle)
         int childIndex = node->findFlushingChild();
         Node* child = node->children[childIndex];
@@ -235,20 +167,9 @@ class BeTree{
                 Message msg = *it;
                 it = node->buffer.erase(it);
                 if(child->isLeaf()) {
-                    // apply(msg, child);
-                    // // Need to update variables
-                    // it = node->buffer.begin(); 
-                    // childIndex = node->findFlushingChild();
-                    // child = node->children[childIndex];
                     int index = child->findChild(msg.key);
-                    if(msg.op==INSERT) {
-                        printf("Inserting key: %i\n", msg.key);
-                        child->insertKey(msg.key, index);
-                    }
-                    else if(msg.op==DELETE) {
-                        printf("Deleting %i\n", msg.key);
-                        child->keys.erase(child->keys.begin()+index);
-                    }
+                    if(msg.op==INSERT) child->insertKey(msg.key, index);
+                    else if(msg.op==DELETE) child->keys.erase(child->keys.begin()+index);
                 } else {
                     auto it = std::upper_bound(child->buffer.cbegin(), child->buffer.cend(), msg);
                     child->buffer.insert(it, msg);
@@ -256,37 +177,20 @@ class BeTree{
             } else ++it;
         }
         if(!child->isLeaf()) child->annihilateMatching(); // Annihilate matching ins/del operations
-        fixNode(child);
+        fixLeaf(child);
         // Flush child if needed
-        while(child->buffer.size() > B-Beps){
-            printf("Flushing while flushing\n");
-            flush(child);
-        } 
+        while(child->buffer.size() > B-Beps) flush(child, blockTr);
     }
 
     void insertUpdate(int key, int op){
         Message msg{key, op};
-        // Insert message in initial buffer (not bounded to the root node)
-        int blockTransfers = 0;
-        if(root == NULL) {
-            initBuff.push_back(msg);
-            // Apply messages of the initial buffer and empty it
-            if(initBuff.size() >= B) {
-                root = new Node(NULL, std::vector<Node*>{}, std::vector<int>{});
-                for(Message msg : initBuff) apply(msg, root);
-                initBuff.clear();
-            }
-        }
         // Insert in the root buffer
-        else {
-            if(root->isLeaf()) apply(msg, root); // If root is a leaf -> instantly apply update
-            else{ // If root is not a leaf -> add msg to its buffer
-                auto it = std::upper_bound(root->buffer.cbegin(), root->buffer.cend(), msg);
-                root->buffer.insert(it, msg);
-                if(root->buffer.size() > B-Beps) flush(root);         
-            }           
-        }
-        blockTransfers = 0;
+        if(root->isLeaf()) apply(msg, root); // If root is a leaf -> instantly apply update
+        else{ // If root is not a leaf -> add msg to its buffer
+            auto it = std::upper_bound(root->buffer.cbegin(), root->buffer.cend(), msg);
+            root->buffer.insert(it, msg);
+            if(root->buffer.size() > B-Beps) flush(root);         
+        }           
     }
 
     int predecessor(int key){
@@ -322,48 +226,4 @@ class BeTree{
         }
         return -1;
     }
-
-    std::vector<int> range(int x, int y){
-        std::vector<int> res{};
-        Node* curr = root;
-        while(!curr->isLeaf()){
-            // Check buffer for updates to push down
-            for(auto it = curr->buffer.begin(); it != curr->buffer.end();){
-                Message msg = *it;
-                if(msg.key >= x && msg.key <= y){ // Push update down appropriate node
-                    int pushIndex = curr->findChild(msg.key);
-                    curr->children[pushIndex]->buffer.push_back(msg);
-                    it = curr->buffer.erase(it);
-                    curr->children[pushIndex]->annihilateMatching();
-                    //TODO: Flush? 
-                } else ++it;
-            }
-            int nextIndex = curr->findChild(x);
-            curr = curr->children[nextIndex];
-        }
-        // Will have reached the leaf containing x (if present)
-        bool finished = false;
-        while(!finished && curr->parent){
-            if(curr->isLeaf()){ // Add keys to solution if currently in leaf
-                for(int key : curr->keys){
-                    if(key >= x && key <= y) res.push_back(key);
-                    else if(key > y) finished = true;
-                }
-                curr = curr->parent;
-            } else {
-                bool down = false;
-                for(int i = 0; i<curr->children.size(); ++i){
-                    if(curr->children[i]->keys[0] > res[res.size()-1] && curr->children[i]->keys[0] <=y){
-                        down = true;
-                        curr = curr->children[i];
-                        break;
-                    }
-                }
-                if(!down) curr = curr->parent;
-            }
-        }
-
-        return res;
-    }
-
 };

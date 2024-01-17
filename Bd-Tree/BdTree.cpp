@@ -174,7 +174,7 @@ class BdTree{
         node->keys.erase(node->keys.begin()+index); 
         if(node->keys.size() < (B*logB(Nestimate))/2) node->merge((B*logB(Nestimate))/2);
         --N;
-        printTree();
+        //printTree();
     }
 
     void apply(Message msg, Node* node){
@@ -221,7 +221,7 @@ class BdTree{
             while(child->buffer.size() > (B/Bdelta)*logB(Nestimate)) flush(child);
             Node* curr = child;
             while(curr != root) {
-                printf("Updating Aux while flushing\n");
+                //printf("Updating Aux while flushing\n");
                 curr->updateParentAux();
                 curr = curr->parent;
             }
@@ -550,11 +550,6 @@ class BdTree{
             }
         }
         return res;
-    }
-
-    void range(int a, int b){
-        Node* curr = root;
-
     }
 
 };

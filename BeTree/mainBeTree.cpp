@@ -9,7 +9,7 @@ void testCase1(){
     */
     BeTree t = BeTree(9, EPS);
     for(int i=1; i<=500; i++) t.insertUpdate(i, INSERT);
-    t.printTree();
+    //t.printTree();
 }
 
 void testCase2(){
@@ -28,15 +28,15 @@ void testCase2(){
     t.insertUpdate(34, INSERT);
     for(int i=40; i<50; i++) t.insertUpdate(i, INSERT);
     std::cout << "Before DELETE updates\n";
-    t.printTree();
+    //t.printTree();
     for(int i=1; i<=15; i++) {
         t.insertUpdate(i, DELETE);
     }
     std::cout << "After DELETE updates\n";
-    t.printTree();
+    //t.printTree();
     for(int i=1; i<100; i++) t.insertUpdate(i, BLANK);
     std::cout << "After BLANK updates\n";
-    t.printTree();
+    //t.printTree();
 
 }
 
@@ -61,15 +61,15 @@ void testCase3(){
     t.insertUpdate(34, INSERT);
     for(int i=40; i<50; i++) t.insertUpdate(i, INSERT);
     std::cout << "Before DELETE updates\n";
-    t.printTree();
+    //t.printTree();
     for(int i=15; i>1; i--) {
         t.insertUpdate(i, DELETE);
     }
     std::cout << "After DELETE updates\n";
-    t.printTree();
+    //t.printTree();
     for(int i=1; i<100; i++) t.insertUpdate(i, BLANK);
     std::cout << "After BLANK updates\n";
-    t.printTree();
+    //t.printTree();
 }
 
 void testCase4(){
@@ -78,10 +78,9 @@ void testCase4(){
     */
     BeTree t = BeTree(9, EPS);
     for(int i=1; i<=5000; i++) t.insertUpdate(i, INSERT);
-    t.printTree();
-    printf("Finished Inserting\n");
+    //t.printTree();
     for(int i=5000; i>0; i--) t.insertUpdate(i, DELETE);
-    t.printTree();
+   // t.printTree();
 }
 
 void testCase5(){
@@ -90,44 +89,35 @@ void testCase5(){
     */
     BeTree t = BeTree(16, EPS);
     for(int i=1; i<=150; i++) t.insertUpdate(i, INSERT);
-    t.printTree();
+    //t.printTree();
     for(int i=150; i>0; i--) t.insertUpdate(i, DELETE);
 
-    t.printTree();
+    //t.printTree();
 }
 
 void testCase6(){
-    /*
-    Tests range query
-    */
-    BeTree t = BeTree(9, EPS);
-    for(int i=1; i<=1500; i++) t.insertUpdate(i, INSERT);
-    t.printTree();
-    int from = 70, to = 140;
-    std::vector<int> preds = t.range(from, to);
-    for(int key : preds) printf("%i ", key);
-    t.generateDotFile();
-    printf("\n");
-}
-
-void testCase7(){
     BeTree t = BeTree(20, EPS);
     for(int i=0; i<pow(10, 6); ++i) t.insertUpdate(i, INSERT);
     for(int i=5000; i<100000; ++i) t.insertUpdate(i, DELETE);
-    //std::ofstream dotFile("bdTree.dot");
-    // dotFile << "digraph BTree {" << std::endl;
-    // t.generateDotFile(t.root, dotFile);
-    // dotFile << "}" <<std::endl;
+    //t.printTree();
+}
+
+void testCase7(){
+    // TODO: Flushing cascades
+    BeTree t = BeTree(10, EPS);
+    for(int i=1; i<=2000; i++) t.insertUpdate(i, INSERT);
+    //t.printTree();
+    for(int i=200; i>0; i--) t.insertUpdate(i, DELETE);
     //t.printTree();
 }
 
 void testCase8(){
-    // Flushing cascades
-    BeTree t = BeTree(10, EPS);
-    for(int i=1; i<=2000; i++) t.insertUpdate(i, INSERT);
-    t.printTree();
-    for(int i=200; i>0; i--) t.insertUpdate(i, DELETE);
-    t.printTree();
+    // Flushing cascades! (EPS = 0.5, B=50, insert 9'000'000, delete 1'000'000)
+    BeTree t = BeTree(50, EPS);
+    for(int i=1; i<=9000000; i++) t.insertUpdate(i, INSERT);
+    //t.printTree();
+    for(int i=1000000; i>0; i--) t.insertUpdate(i, DELETE);
+    //t.printTree();
 }
 
 

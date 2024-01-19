@@ -18,16 +18,38 @@ class BTree{
         if(root != NULL) root->printBT("", false);
     }
 
-    void generateDotFile(){
-        std::ofstream dotFile("betree.dot");
-        dotFile << "digraph BTree {" << std::endl;
-        dotFile << "node [shape = record,height=.5];" << std::endl;
-        generateDotNode(root, dotFile);
-        dotFile << "}" <<std::endl;
+    void gernerateSVGFromDot(const std::string& dotFile, const std::string& svgFile){
+        // Construct the command to run the dot utility
+        std::string command = "dot -Tsvg " + dotFile + " -o " + svgFile;
+
+        // Run the dot command using system()
+        int result = system(command.c_str());
+
+        // Check if the command was successful
+        if (result != 0) {
+            std::cerr << "Error: Failed to generate SVG file. Make sure Graphviz is installed." << std::endl;
+        } else {
+            std::cout << "SVG file generated successfully: " << svgFile << std::endl;
+        }
     }
 
     // Function to generate a DOT file for a B-tree
+    void generateDotFile(){
+        std::ofstream dotFile("btree.dot");
+        dotFile << "digraph BTree {" << std::endl;
+        //dotFile << "rankdir=TB;" << std::endl;
+        dotFile << "node [shape = record,height=.5];" << std::endl;
+        dotFile << "ranksep = 3.0;" << std::endl;
+        dotFile << "splines = false;" << std::endl;
+        generateDotNode(root, dotFile);
+        dotFile << "}" <<std::endl;
+
+        // Generate SVG file
+        gernerateSVGFromDot("btree.dot", "btree.svg");
+    }
+    
     void generateDotNode(Node* node, std::ofstream& dotFile) {
+        // Generates DOT code for each node
         if (node) {
             std::string nodeLabel = "node_" + std::to_string(reinterpret_cast<uintptr_t>(node));
             dotFile << nodeLabel << "[label = \"<f0>";
@@ -44,6 +66,7 @@ class BTree{
             }
         }
     }
+
     Node* search(int k){
         if(root == NULL){
             std::cout << "The tree is empty" << std::endl;
@@ -161,9 +184,7 @@ class BTree{
             curr->keys.erase(curr->keys.begin()+index);
             printf("Deleting in a B-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double) log2(N)/log2(B)), N, B, blockTransfers);
             --N;
-        } else{
-            std::cout << "Key " << key << " not in tree!\n";
-        }
+        } else std::cout << "Key " << key << " not in tree!\n";
     }
 
     int predecessor(int key){

@@ -54,7 +54,6 @@ class BdTree{
         std::cout << "B - B^d: " << B - Bdelta << std::endl;
         printf("logB(N) = %i\n", leafSize);
         printf("B/B^d = %i\n", B/Bdelta);
-        printf("B^1-2d / logBN = %i\n", (B/Bdelta*Bdelta) / leafSize);
     }
 
     void initTree(){
@@ -68,74 +67,61 @@ class BdTree{
         if(root != NULL) root->printBT("", false);
     }
 
-    int calculateSubtreeWidth(Node* node) {
-        if (node == nullptr) {
-            return 0;
+    void getMaxNodeWidth(Node* node, int* maxWidth) {
+        int nodeWidth  =(node->keys.size()+1)*50;
+        if(nodeWidth>*maxWidth) *maxWidth=nodeWidth;
+        for(Node* child : node->children){
+            int childWidth = (child->keys.size()+1)*50;
+            if(childWidth>*maxWidth) *maxWidth = childWidth;
+            getMaxNodeWidth(child, maxWidth);
         }
-
-        int width = 0;
-        width += (node->keys.size() + 1)*50 + 50*(node->keys.size()-1);
-
-        // Recursively calculate the width of each child node
-        for (int i = 0; i < node->children.size(); ++i) {
-            width += calculateSubtreeWidth(node->children[i]);
-        }
-        return width;
     }
 
+    void gernerateSVGFromDot(const std::string& dotFile, const std::string& svgFile){
+        // Construct the command to run the dot utility
+        std::string command = "dot -Tsvg " + dotFile + " -o " + svgFile;
 
-    void generateSVGFile(){
-        std::ofstream svgFile("Bdtree.svg");
-        int width = calculateSubtreeWidth(root);
-        printf("Root width: %i\n", width);
-        svgFile << "<svg width=\"" << width*3 <<"\" height=\"3000\" xmlns=\"http://www.w3.org/2000/svg\">\n";
-        generateSVGNode(root, svgFile, width, 50, 100, 200);
-        svgFile << "</svg>\n";
+        // Run the dot command using system()
+        int result = system(command.c_str());
+
+        // Check if the command was successful
+        if (result != 0) {
+            std::cerr << "Error: Failed to generate SVG file. Make sure Graphviz is installed." << std::endl;
+        } else {
+            std::cout << "SVG file generated successfully: " << svgFile << std::endl;
+        }
     }
 
-    void generateSVGNode(Node* node, std::ostream& out, int x, int y, int xOffset, int yOffset) {
+    // Function to generate a DOT file for a B-tree
+    void generateDotFile(){
+        std::ofstream dotFile("bdtree.dot");
+        dotFile << "digraph BTree {" << std::endl;
+        //dotFile << "rankdir=TB;" << std::endl;
+        dotFile << "node [shape = record,height=.5];" << std::endl;
+        dotFile << "ranksep = 3.0;" << std::endl;
+        dotFile << "splines = false;" << std::endl;
+        generateDotNode(root, dotFile);
+        dotFile << "}" <<std::endl;
+
+        // Generate SVG file
+        gernerateSVGFromDot("bdtree.dot", "bdtree.svg");
+    }
+    
+    void generateDotNode(Node* node, std::ofstream& dotFile) {
+        // Generates DOT code for each node
         if (node) {
-            int totalWidth = (node->keys.size() + 1) * 50;
-            int rectX = x;
-
-            // Draw a single rectangle for the keys of the current node
-            out << "<rect x=\"" << rectX << "\" y=\"" << y - 20 << "\" width=\"" << totalWidth << "\" height=\"35\" fill=\"white\" stroke=\"black\"/>\n";
-
-            // Write keys inside the rectangle
-            int currentX = rectX + 10; // Initial x-position inside the rectangle
-            for (int i = 0; i < node->keys.size(); ++i) {
-                out << "<text x=\"" << currentX << "\" y=\"" << y << "\" text-anchor=\"start\" dominant-baseline=\"middle\">" << node->keys[i] << "</text>\n";
-                currentX += 50; // Adjust the spacing between keys as needed
+            std::string nodeLabel = "node_" + std::to_string(reinterpret_cast<uintptr_t>(node));
+            dotFile << nodeLabel << "[label = \"<f0>";
+            
+            for (size_t i = 0; i < node->keys.size(); ++i) {
+                dotFile << " |" << node->keys[i] << "|<f" << (i + 1) << ">";
             }
 
-            // Draw lines to the children
-            for (int i = 0; i < node->children.size(); ++i) {
-                int childX = rectX+i*(xOffset+totalWidth);
-                // Center the children
-                if(i < node->children.size()/2){
+            dotFile << "\"];" << std::endl;
 
-                }
-                //for(int j=0; j<i; ++j) childX += calculateSubtreeWidth(node->children[j]);
-                //for(int j=i+1; j<node->children.size(); ++j) childX -= calculateSubtreeWidth(node->children[j]);
-                // Adjust for the width of the right sibling's subtree, if it exists
-                // if(i > 0){
-                //     int leftSiblingWidth = calculateSubtreeWidth(node->children[i-1]);
-                //     childX += leftSiblingWidth;
-                // }
-                // else 
-                // if (i < node->children.size() - 1) {
-                //     int rightSiblingWidth = calculateSubtreeWidth(node->children[i + 1]); // Assume you have a function to calculate the subtree width
-                //     childX -= rightSiblingWidth;
-                //     printf("Calculated width: %i\n", rightSiblingWidth);
-                // }
-
-                int childY = y + yOffset;
-
-                // Draw a line from the current node to the child
-                out << "<line x1=\"" << x + i * totalWidth / (node->keys.size() + 1) << "\" y1=\"" << y + 20 << "\" x2=\"" << childX << "\" y2=\"" << childY - 20 << "\" stroke=\"black\"/>\n";
-
-                // Recursively draw the child
-                generateSVGNode(node->children[i], out, childX, childY, xOffset, yOffset);
+            for (size_t i = 0; i < node->children.size(); ++i) {
+                generateDotNode(node->children[i], dotFile);
+                dotFile << "\"" << nodeLabel << "\":f" << i << " -> \"node_" << reinterpret_cast<uintptr_t>(node->children[i]) << "\";" << std::endl;
             }
         }
     }
@@ -344,12 +330,12 @@ class BdTree{
                     pause();
                 } else {
                     ++currStep;
-                    printf("Reached micro-root\n");
+                    //printf("Reached micro-root\n");
                 }
                 break;
             case 2: // Split/Merging micro-root
                 if(splitPhase && !n1->keys.empty() && n1->getLeafSize() >= 4*B*pow(logB(Nestimate), 2)) {
-                    printf("Splitting micro-root\n");
+                    //printf("Splitting micro-root\n");
                     n1->split();
                     splitMerged = true;
                     blockTransfers += 2;
@@ -358,7 +344,7 @@ class BdTree{
                 }
                 else if(!splitPhase && !root->keys.empty() && n1->getLeafSize() <= 2*B*pow(logB(Nestimate), 2)){
                     // Merging
-                    printf("Merging micro-root\n");
+                    //printf("Merging micro-root\n");
                     n1->merge((B*logB(Nestimate))/2);
                     blockTransfers += 2;
                     // Split if resulting node too big
@@ -373,7 +359,7 @@ class BdTree{
                 break;
             case 3: // Moving n1 to it's parent
                 if(n1->parent && splitMerged){
-                    printf("Moving n1 to it's parent\n");
+                    //printf("Moving n1 to it's parent\n");
                     n1 = n1->parent;
                     ++currStep;
                     ++blockTransfers;
@@ -382,7 +368,7 @@ class BdTree{
                 break;
             case 4: // Split/merging n1 if needed
                 if(splitPhase && n1->keys.size() > Bdelta) {
-                    printf("Splitting while moving n1 up\n");
+                    //printf("Splitting while moving n1 up\n");
                     n1->split();
                     blockTransfers += 2;
                     fixRoot();
@@ -391,7 +377,7 @@ class BdTree{
                 }
                 else if(!splitPhase && n1 != root && n1->keys.size() <= Bdelta/2){
                     // Merging
-                    printf("Merging while moving n1 up\n");
+                    //printf("Merging while moving n1 up\n");
                     n1->merge((B*logB(Nestimate))/2);
                     fixRoot();
                     blockTransfers += 2;
@@ -408,14 +394,14 @@ class BdTree{
                 break;
             case 6: // Repeated flushing of split/merged node
                 if(!n2->isMicroRoot() && n2->buffer.size() > B/Bdelta){
-                    printf("Flushing n2 while overfull\n");
+                    //printf("Flushing n2 while overfull\n");
                     n3 = n2;
                     ++currStep;
                 } else currStep = 10;
                 break;
             case 7: // Propagating flush downward
                 if(n3->buffer.size() > B/Bdelta){
-                    printf("Progagate flush of n3 down\n");
+                    //printf("Progagate flush of n3 down\n");
                     int flushChildIndex = n3->findFlushingChild();
                     n4 = n3->children[flushChildIndex];
                     ++currStep;
@@ -430,7 +416,7 @@ class BdTree{
                 break;
             case 9: // Update auxiliary information
                 if(n3 != root){
-                    printf("Updating aux in n3\n");
+                    //printf("Updating aux in n3\n");
                     n3->updateParentAux();
                     n3 = n3->parent;
                     ++blockTransfers;
@@ -445,7 +431,7 @@ class BdTree{
                 break;
             case 11: // Flush from root
                 if(n5->buffer.size() > B/Bdelta){
-                    printf("Flushing n5 and moving down\n");
+                    //printf("Flushing n5 and moving down\n");
                     int flushChildIndex = n5->findFlushingChild();
                     n6 = n5->children[flushChildIndex];
                     ++currStep;
@@ -470,9 +456,9 @@ class BdTree{
             {   splitPhase = !splitPhase;
                 currStep = 0;
                 splitMerged = false;
-                printf("Finished one cycle with %i block transfers in tree of height %f\n", blockTransfers, ceil((double) logB(N)));
+                //printf("Finished one cycle with %i block transfers in tree of height %f\n", blockTransfers, ceil((double) logB(N)));
                 int maxblock = height+height*((Bdelta*(height+Bdelta)) + (Bdelta*(height+Bdelta)));
-                printf("Max number of block transfers: %i\n", maxblock);
+                //printf("Max number of block transfers: %i\n", maxblock);
                 blockTransfers = 0;
                 break;
             }

@@ -1,4 +1,5 @@
 #include <fstream>
+#include <cstdlib>
 #include "Node.cpp"
 
 #define DELETE 0
@@ -19,12 +20,27 @@ class BeTree{
         Beps = std::floor(pow(B, eps));
         blockTransfers = 0;
         N = 0;
-        std::cout << "B^e: " << Beps << std::endl;
-        std::cout << "B - B^e: " << B - Beps << std::endl;
+        // std::cout << "B^e: " << Beps << std::endl;
+        // std::cout << "B - B^e: " << B - Beps << std::endl;
     }
 
     void printTree(){
         if(root != NULL) root->printBT("", false);
+    }
+
+    void gernerateSVGFromDot(const std::string& dotFile, const std::string& svgFile){
+        // Construct the command to run the dot utility
+        std::string command = "dot -Tsvg " + dotFile + " -o " + svgFile;
+
+        // Run the dot command using system()
+        int result = system(command.c_str());
+
+        // Check if the command was successful
+        if (result != 0) {
+            std::cerr << "Error: Failed to generate SVG file. Make sure Graphviz is installed." << std::endl;
+        } else {
+            std::cout << "SVG file generated successfully: " << svgFile << std::endl;
+        }
     }
 
     // Function to generate a DOT file for a B-tree
@@ -33,11 +49,17 @@ class BeTree{
         dotFile << "digraph BTree {" << std::endl;
         //dotFile << "rankdir=TB;" << std::endl;
         dotFile << "node [shape = record,height=.5];" << std::endl;
+        dotFile << "ranksep = 3.0;" << std::endl;
+        dotFile << "splines = false;" << std::endl;
         generateDotNode(root, dotFile);
         dotFile << "}" <<std::endl;
+
+        // Generate SVG file
+        gernerateSVGFromDot("betree.dot", "betree.svg");
     }
     
     void generateDotNode(Node* node, std::ofstream& dotFile) {
+        // Generates DOT code for each node
         if (node) {
             std::string nodeLabel = "node_" + std::to_string(reinterpret_cast<uintptr_t>(node));
             dotFile << nodeLabel << "[label = \"<f0>";
@@ -90,10 +112,11 @@ class BeTree{
                                             curr->keys[i] = curr->children[i]->keys.back();
             }
             // Check buffer overflow
+            bool cascades = false;
             while(curr->buffer.size() > B-Beps){
-                printf("Flushing cascades!\n");
-                Node* tmp = curr;
-                flush(tmp);
+                printf("Flushing cascades after merge!\n");
+                cascades = true;
+                flush(curr);
             }
             curr = curr->parent;
         }
@@ -109,55 +132,24 @@ class BeTree{
 
     }
 
-    void insert(Node* node, int key){
-        int index = node->findChild(key);
-        node->insertKey(key, index);
-        ++blockTransfers;
-        ++N;
-    }
-
-    void remove(Node* node, int key){
-        int index = node->findChild(key);
-        // Key not in tree
-        if(node->keys[index] != key){
-            printf("Key not in tree\n");
-            return;
-        }
-        node->keys.erase(node->keys.begin()+index); // Remove from leaf
-        ++blockTransfers;
-        // Update parent key if needed
-        if(node != root) node->updateParent(key);
-        --N;
-    }
-
     void apply(Message msg, Node* node){
+        int index = node->findChild(msg.key);
         switch(msg.op){
             case DELETE: 
-                remove(node, msg.key);
-                // Handle empty root case
-                if(root->keys.size()==0) {
-                    root->children[0]->buffer.insert(root->children[0]->buffer.begin(), root->buffer.begin(), root->buffer.end());
-                    root->buffer.clear();
-                    root = root->children[0];
-                    root->setParent(NULL);
-                    for(int i=1; i<root->children.size(); i++) root->children[i]->setParent(root);
-                    while(root->buffer.size() > B-Beps) flush(root);
+                if(node->keys[index] = msg.key) {
+                    node->keys.erase(node->keys.begin()+index);
+                    --N;
                 }
-                printf("Deleting in a Be-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double) log2(N)/log2(B)), N, B, blockTransfers);
+                else printf("Key %i node in tree\n", msg.key);
                 break;
             case INSERT: 
-                insert(node, msg.key);
-                // Handle new root case
-                if(root->parent != NULL) root = root->parent;
-                printf("Inserting in a Be-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double) log2(N)/log2(B)), N, B, blockTransfers);
-                break;
+                node->insertKey(msg.key, index);
+                ++N;
             default: break;
         }
-        fixLeaf(node);
-        blockTransfers = 0;
     }
 
-    void flush(Node* node, int* blockTr=0){
+    void flush(Node* node, bool cascades=false){
         // Flushes at least O(B^(1-eps)) updates (pigeonhole principle)
         int childIndex = node->findFlushingChild();
         Node* child = node->children[childIndex];
@@ -166,11 +158,8 @@ class BeTree{
             if(node->findChild(it->key) == childIndex){
                 Message msg = *it;
                 it = node->buffer.erase(it);
-                if(child->isLeaf()) {
-                    int index = child->findChild(msg.key);
-                    if(msg.op==INSERT) child->insertKey(msg.key, index);
-                    else if(msg.op==DELETE) child->keys.erase(child->keys.begin()+index);
-                } else {
+                if(child->isLeaf()) apply(msg, child);
+                else {
                     auto it = std::upper_bound(child->buffer.cbegin(), child->buffer.cend(), msg);
                     child->buffer.insert(it, msg);
                 }
@@ -178,14 +167,21 @@ class BeTree{
         }
         if(!child->isLeaf()) child->annihilateMatching(); // Annihilate matching ins/del operations
         fixLeaf(child);
+        if(!cascades && blockTransfers > ceil((double) log2(N)/log2(B))) printf("Height: %f, blocktransfers: %i\n", ceil((double) log2(N)/log2(B)), blockTransfers);
+        if(!cascades) blockTransfers=0;
+        //printf("Applying %f updates in a Be-tree of height %f required %i block transfers\n", ceil((double) pow(B, 1-eps)), ceil((double) log2(N)/log2(B)), blockTransfers);
         // Flush child if needed
-        while(child->buffer.size() > B-Beps) flush(child, blockTr);
+        while(child->buffer.size() > B-Beps) flush(child);
+
     }
 
     void insertUpdate(int key, int op){
         Message msg{key, op};
         // Insert in the root buffer
-        if(root->isLeaf()) apply(msg, root); // If root is a leaf -> instantly apply update
+        if(root->isLeaf()) {
+            apply(msg, root); // If root is a leaf -> instantly apply update
+            fixLeaf(root);
+        }
         else{ // If root is not a leaf -> add msg to its buffer
             auto it = std::upper_bound(root->buffer.cbegin(), root->buffer.cend(), msg);
             root->buffer.insert(it, msg);

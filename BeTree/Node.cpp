@@ -270,10 +270,4 @@ class Node{
         }
         parent->keys.erase(parent->keys.begin()+keyDownIndex);                    
     }
-
-    void updateParent(int deletedKey){
-        int lastKey = keys.back();
-        int parentIndex = parent->findChild(deletedKey);
-        if(parent->keys[parentIndex] == deletedKey) parent->keys[parentIndex] = lastKey;
-    }
 };

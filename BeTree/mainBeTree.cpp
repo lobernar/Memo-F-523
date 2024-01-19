@@ -60,15 +60,12 @@ void testCase3(){
     for(int i=11; i<=21; i++) t.insertUpdate(i, INSERT);
     t.insertUpdate(34, INSERT);
     for(int i=40; i<50; i++) t.insertUpdate(i, INSERT);
-    std::cout << "Before DELETE updates\n";
     //t.printTree();
     for(int i=15; i>1; i--) {
         t.insertUpdate(i, DELETE);
     }
-    std::cout << "After DELETE updates\n";
     //t.printTree();
     for(int i=1; i<100; i++) t.insertUpdate(i, BLANK);
-    std::cout << "After BLANK updates\n";
     //t.printTree();
 }
 
@@ -80,7 +77,7 @@ void testCase4(){
     for(int i=1; i<=5000; i++) t.insertUpdate(i, INSERT);
     //t.printTree();
     for(int i=5000; i>0; i--) t.insertUpdate(i, DELETE);
-   // t.printTree();
+    //t.printTree();
 }
 
 void testCase5(){
@@ -109,6 +106,7 @@ void testCase7(){
     //t.printTree();
     for(int i=200; i>0; i--) t.insertUpdate(i, DELETE);
     //t.printTree();
+    t.generateDotFile();
 }
 
 void testCase8(){

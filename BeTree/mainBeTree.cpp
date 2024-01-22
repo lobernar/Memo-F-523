@@ -32,10 +32,6 @@ void testCase2(){
     for(int i=1; i<=15; i++) {
         t.insertUpdate(i, DELETE);
     }
-    std::cout << "After DELETE updates\n";
-    //t.printTree();
-    for(int i=1; i<100; i++) t.insertUpdate(i, BLANK);
-    std::cout << "After BLANK updates\n";
     //t.printTree();
 
 }
@@ -117,6 +113,16 @@ void testCase8(){
     //t.printTree();
 }
 
+void testCase9(){
+    /*
+    Tests insertion
+    */
+    BeTree t = BeTree(10, 0.5);
+    for(int i=1; i<=2000; i++) t.insertUpdate(i, INSERT);
+    t.printTree();
+    //printf("%i\n", t.predecessor(1999));
+}
+
 
 int main(){
     printf("\n------------------------------TEST CASE 1------------------------------\n\n");
@@ -135,6 +141,8 @@ int main(){
     testCase7();
     printf("\n------------------------------TEST CASE 8--------------------------\n\n");
     testCase8();
+    printf("\n------------------------------TEST CASE 9--------------------------\n\n");
+    testCase9();
 
 
     return 0;

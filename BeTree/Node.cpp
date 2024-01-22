@@ -239,14 +239,18 @@ class Node{
     void merge(){
         Node* sibling = getLeftSibling();
         int keyIndex = 0, childIndex = 0, buffIndex = 0;
+        bool left = true;
         if(sibling == this){
             sibling = getRightSibling();
             keyIndex = keys.size();
             childIndex = children.size();
             buffIndex = buffer.size();
+            left = false;
         }
-        int keyDownIndex = std::max(myIndex()-1, 0);
+        //int keyDownIndex = std::max(myIndex()-left, 0);
+        int keyDownIndex = myIndex();
         if(keyDownIndex == parent->keys.size()) --keyDownIndex;
+        else keyDownIndex = std::max(keyDownIndex-left, 0);
         // Merging keys and children into current node
         keys.insert(keys.begin()+keyIndex, sibling->keys.begin(), sibling->keys.end());
         for(Node* child : sibling->children){

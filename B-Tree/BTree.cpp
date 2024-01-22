@@ -102,7 +102,7 @@ class BTree{
             index = curr->findChild(key);
         }
         curr->insertKey(key, index); // Will have reached a leaf here
-        printf("Inserting in a B-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double)log2(N)/log2(B)), N, B, blockTransfers);
+        //printf("Inserting in a B-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double)log2(N)/log2(B)), N, B, blockTransfers);
         ++N;
     }
 
@@ -112,7 +112,7 @@ class BTree{
         Node* successor = curr->getSuccessor(index);
 
         // Find predecessor key and remove it recursively
-        if(predecessor != curr && predecessor->keys.size() >= floor((B+1)/2)){
+        if(predecessor != curr && predecessor->keys.size() >= floor((B)/2)+1){
             int predKey = predecessor->keys[predecessor->keys.size()-1];
             curr->keys[index] = predKey;
             key = predKey;
@@ -120,9 +120,8 @@ class BTree{
             ++blockTransfers;
         }
         // Find successor key and remove it recursively
-        else if(successor != curr && successor->keys.size() >= floor((B+1)/2)){
+        else if(successor != curr && successor->keys.size() >= floor((B)/2)+1){
             int succKey = successor->keys[0];
-            //remove(succKey); //Don't remove since we use duplicates
             curr->keys[index] = succKey;
             key = succKey;
             next = successor;
@@ -131,7 +130,15 @@ class BTree{
         // Merging predecessor with successor
         else{
             predecessor->insertKey(key, predecessor->keys.size());
-            predecessor->merge(successor, false);
+            predecessor->mergePredSucc(successor);
+            int keyIndex = curr->findChild(key);
+            curr->keys.erase(curr->keys.begin()+keyIndex);
+            // NOT SURE ABOUT THIS
+            if(predecessor->parent != successor->parent){
+                int insertIndex = curr->findChild(successor->parent->keys[0]);
+                curr->keys.insert(curr->keys.begin()+insertIndex, successor->parent->keys[0]);
+                successor->parent->keys.erase(successor->parent->keys.begin());
+            }
             next = predecessor; // Update variable
             blockTransfers += 2;
         }
@@ -146,23 +153,22 @@ class BTree{
             Node* next = curr->children[index];
             ++blockTransfers;
             // Check if next child has enough keys
-            if(!next->keys.size() >= floor((B+1)/2)){
+            if(next->keys.size() < (B/2)){
                 Node* leftSibling = (index > 0) ? curr->children[index - 1] : NULL;
                 Node* rightSibling = (index < curr->children.size()-1) ? curr->children[index + 1] : NULL;
                 // Borrow from left sibling
-                if(leftSibling != NULL && leftSibling->keys.size() >= floor((B+1)/2)) {
-                    curr->borrow(leftSibling, next, index-1, leftSibling->keys.size()-1, true);
+                if(leftSibling != NULL && leftSibling->keys.size() >= (B/2)) {
+                    next->borrowLeft(leftSibling);
                     ++blockTransfers;
                 }
                 // Borrow from right sibling
-                else if(rightSibling != NULL && rightSibling->keys.size() >= floor((B+1)/2)) {
-                    curr->borrow(rightSibling, next, index, 0, false);
+                else if(rightSibling != NULL && rightSibling->keys.size() >= (B/2)) {
+                    next->borrowRight(rightSibling);
                     ++blockTransfers;
                 }
                 //Merging next child with one of his siblings
                 else{
-                    if(leftSibling != NULL) next->merge(leftSibling, true);
-                    else next->merge(rightSibling, false);
+                    next->merge();
                     blockTransfers += 2;
                     // Tree shrinks
                     if(curr == root && curr->keys.empty()) {
@@ -182,9 +188,12 @@ class BTree{
         // Will have reached a leaf here
         if(curr != NULL && curr->isLeaf() && curr->keys[index] == key){
             curr->keys.erase(curr->keys.begin()+index);
-            printf("Deleting in a B-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double) log2(N)/log2(B)), N, B, blockTransfers);
+            //printf("Deleting in a B-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double) log2(N)/log2(B)), N, B, blockTransfers);
             --N;
-        } else std::cout << "Key " << key << " not in tree!\n";
+        } else {
+            std::cout << "Key " << key << " not in tree!\n";
+            exit(0);
+        }
     }
 
     int predecessor(int key){

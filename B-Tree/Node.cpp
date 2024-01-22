@@ -88,7 +88,7 @@ class Node{
     Node* getLeftSibling(){
         int index = parent->findChild(keys[0]);
         if(index == 0) return this;
-        return parent->children[index];
+        return parent->children[index-1];
     }
 
     Node* getRightSibling(){
@@ -97,9 +97,23 @@ class Node{
         return parent->children[index+1];
     }
 
+    int myIndex(){
+        for(int i=0; i<parent->children.size(); ++i){
+            if(parent->children[i] == this) return i;
+        }
+        return -1;
+    }
+
     void moveKeyToChild(Node* child, int index, int insertIndex){
-        child->keys.insert(child->keys.begin() + insertIndex, std::move(keys[index]));
+        printf("Moving key %i from parent to child\n", keys[index]);
+        child->keys.insert(child->keys.begin() + insertIndex, keys[index]);
         keys.erase(keys.begin() + index); 
+    }
+
+    void moveChild(Node* sibling, int eraseChildIndex, int insertIndex){
+        children.insert(children.begin()+insertIndex, sibling->children[eraseChildIndex]);
+        sibling->children[eraseChildIndex]->setParent(this);
+        sibling->children.erase(sibling->children.begin()+eraseChildIndex);
     }
 
     void split(int index, int half){
@@ -127,49 +141,97 @@ class Node{
         parent->insertChild(newRight, rightIndex);
     }
 
-    void merge(Node* other, bool left){
-        int keyIndex = (left) ? 0 : keys.size();
-        int childIndex = (left) ? 0 : children.size();
+    // void merge(Node* other, bool left){
+    //     int keyIndex = (left) ? 0 : keys.size();
+    //     int childIndex = (left) ? 0 : children.size();
+    //     // Merging keys and children into current node
+    //     keys.insert(keys.begin()+keyIndex, other->keys.begin(), other->keys.end());
+    //     for(Node* child : other->children){
+    //         if(child != NULL) child->setParent(this); // Update parent of merged node
+    //     }
+    //     children.insert(children.begin()+childIndex, other->children.begin(), other->children.end());
+
+    //     // Deleting merged node from it's parent's children
+    //     int mergedIndex = other->parent->findChild(other->keys[0]);
+    //     other->parent->children.erase(other->parent->children.begin()+mergedIndex);
+
+    //     //Move median key in merged node
+    //     int index = parent->findChild(keys[0]);
+    //     int insertIndex = findChild(parent->keys[index]);
+    //     parent->moveKeyToChild(this, index, insertIndex); 
+    // }
+
+    void merge(){
+        //printKeys();
+        Node* sibling = getLeftSibling();
+        int keyIndex = 0, childIndex = 0;
+        if(sibling == this){
+            sibling = getRightSibling();
+            keyIndex = keys.size();
+            childIndex = children.size();
+        }
+        int keyDownIndex = std::max(myIndex()-1, 0);
+        if(keyDownIndex == parent->keys.size()) --keyDownIndex;
+        //sibling->printKeys();
         // Merging keys and children into current node
-        keys.insert(keys.begin()+keyIndex, other->keys.begin(), other->keys.end());
-        for(Node* child : other->children){
+        keys.insert(keys.begin()+keyIndex, sibling->keys.begin(), sibling->keys.end());
+        for(Node* child : sibling->children){
             if(child != NULL) child->setParent(this); // Update parent of merged node
         }
-        children.insert(children.begin()+childIndex, other->children.begin(), other->children.end());
+        children.insert(children.begin()+childIndex, sibling->children.begin(), sibling->children.end());
 
         // Deleting merged node from it's parent's children
-        int mergedIndex = parent->findChild(other->keys[0]);
+        int mergedIndex = parent->findChild(sibling->keys[0]);
         parent->children.erase(parent->children.begin()+mergedIndex);
 
         //Move median key in merged node
-        int index = parent->findChild(keys[0]);
-        if(!isLeaf()) {    
-            int insertIndex = findChild(parent->keys[index]);
-            parent->moveKeyToChild(this, index, insertIndex); 
-        } else {
-            parent->keys.erase(parent->keys.begin()+index);                    
-        }
+        int insertIndex = findChild(parent->keys[keyDownIndex]);
+        int keyDown = parent->keys[keyDownIndex];
+        keys.insert(keys.begin()+insertIndex, keyDown);
+        parent->keys.erase(parent->keys.begin()+keyDownIndex);
     }
 
-    void borrow(Node* sibling, Node* next, int index, int n, bool left){
-        int keyDown = keys[index];
-        int newKeyIndex = (left) ? 0 : next->keys.size();
-        int otherKey = (left) ? sibling->keys.size()-1-sibling->isLeaf() : 0;
-        int eraseChildIndex = (left) ? sibling->children.size() : 0;
-        int eraseKeyIndex = (left) ? sibling->keys.size()-1 : 0;
+    void mergePredSucc(Node* successor){
+        // Merging keys into predecessor node
+        keys.insert(keys.end(), successor->keys.begin(), successor->keys.end());
+        // Deleting merged node from it's parent's children
+        int mergedIndex = successor->parent->findChild(successor->keys[0]);
+        successor->parent->children.erase(successor->parent->children.begin()+mergedIndex);
+    }
 
-        keys[index] = sibling->keys[otherKey]; // move key from sibling up in parent
-        sibling->keys.erase(sibling->keys.begin()+eraseKeyIndex);  
+    void borrowLeft(Node* sibling){
+        // Move key from parent down in node
+        int keyDownIndex = parent->findChild(sibling->keys[0]);
+        int keyDown = parent->keys[keyDownIndex];
+        keys.insert(keys.begin(), keyDown);
+        parent->keys.erase(parent->keys.begin()+keyDownIndex);
 
-        if(!next->isLeaf()){
-            next->insertChild(sibling->children[n], next->children.size());
-            sibling->children[n]->setParent(next); 
-            sibling->children.erase(sibling->children.begin()+eraseChildIndex);
-            next->insertKey(keyDown, newKeyIndex); // Move key from parent/current to next
-        } else{
-            if(left) next->keys.insert(next->keys.begin() + newKeyIndex, keyDown); 
-            else next->insertKey(keys[index], newKeyIndex);
-        }
+        // Move key from sibling up in parent
+        int keyUp = sibling->keys.back();
+        int insertIndex = parent->findChild(keyUp);
+        parent->keys.insert(parent->keys.begin()+insertIndex, keyUp);
+        sibling->keys.pop_back();
+
+        // Handle children
+        if(!isLeaf()) moveChild(sibling, sibling->children.size()-1, 0);
+    }
+
+    void borrowRight(Node* sibling){
+        // Move key from sibling to parent
+        int keyUp = sibling->keys[0];
+        sibling->keys.erase(sibling->keys.begin());
+        int insertIndex = parent->findChild(keys[0])+1;
+        parent->keys.insert(parent->keys.begin()+insertIndex, keyUp);
+
+        // Move keyUp down in node
+        int keyDownIndex = parent->findChild(keys[0]);
+        int keyDown = parent->keys[keyDownIndex];
+        parent->keys.erase(parent->keys.begin()+keyDownIndex);
+        insertIndex = findChild(keyDown);
+        keys.insert(keys.begin()+insertIndex, keyDown);
+
+        // Handle children
+        if(!isLeaf()) moveChild(sibling, 0, children.size());
     }
 
     Node* search(int k){

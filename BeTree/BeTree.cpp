@@ -140,7 +140,10 @@ class BeTree{
                     node->keys.erase(node->keys.begin()+index);
                     --N;
                 }
-                else printf("Key %i node in tree\n", msg.key);
+                else {
+                    printf("Key %i node not in tree\n", msg.key);
+                    exit(0);
+                }
                 break;
             case INSERT: 
                 node->insertKey(msg.key, index);
@@ -166,8 +169,8 @@ class BeTree{
             } else ++it;
         }
         if(!child->isLeaf()) child->annihilateMatching(); // Annihilate matching ins/del operations
-        fixLeaf(child);
-        if(!cascades && blockTransfers > ceil((double) log2(N)/log2(B))) printf("Height: %f, blocktransfers: %i\n", ceil((double) log2(N)/log2(B)), blockTransfers);
+        else fixLeaf(child);
+        //if(!cascades && blockTransfers > ceil((double) log2(N)/log2(B))) printf("Height: %f, blocktransfers: %i\n", ceil((double) log2(N)/log2(B)), blockTransfers);
         if(!cascades) blockTransfers=0;
         //printf("Applying %f updates in a Be-tree of height %f required %i block transfers\n", ceil((double) pow(B, 1-eps)), ceil((double) log2(N)/log2(B)), blockTransfers);
         // Flush child if needed

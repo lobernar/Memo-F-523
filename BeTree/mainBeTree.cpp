@@ -100,7 +100,6 @@ void testCase6(){
 }
 
 void testCase7(){
-    // TODO: Flushing cascades
     BeTree t = BeTree(10, EPS);
     for(int i=1; i<=2000; i++) t.insertUpdate(i, INSERT);
     //t.printTree();

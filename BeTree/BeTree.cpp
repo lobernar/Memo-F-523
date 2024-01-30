@@ -17,11 +17,13 @@ class BeTree{
 
     BeTree(unsigned BIn, float epsIn): B(BIn), eps(epsIn){
         root = new Node(NULL, {}, {});
-        Beps = std::floor(pow(B, eps));
+        Beps =  static_cast<int>(std::floor(pow(B, eps)));
         blockTransfers = 0;
         N = 0;
-        // std::cout << "B^e: " << Beps << std::endl;
-        // std::cout << "B - B^e: " << B - Beps << std::endl;
+        std::cout << "B^e: " << Beps << std::endl;
+        std::cout << "B - B^e: " << B - Beps << std::endl;
+        printf("B/2-1 = %i\n", static_cast<int>(ceil((double) B/2)-1));
+        printf("Beps/2-1 = %i\n", static_cast<int>(ceil((double) Beps/2)-1));
     }
 
     void printTree(){
@@ -116,7 +118,7 @@ class BeTree{
             while(curr->buffer.size() > B-Beps){
                 printf("Flushing cascades after merge!\n");
                 cascades = true;
-                flush(curr);
+                flush(curr, true);
             }
             curr = curr->parent;
         }
@@ -136,16 +138,22 @@ class BeTree{
         int index = node->findChild(msg.key);
         switch(msg.op){
             case DELETE: 
-                if(node->keys[index] = msg.key) {
+                //printf("Removing %i\n", msg.key);
+                //printf("%i\n", node->keys.empty());
+                if(node->keys[index] == msg.key) {
                     node->keys.erase(node->keys.begin()+index);
                     --N;
                 }
                 else {
-                    printf("Key %i node not in tree\n", msg.key);
+                    printf("Key %i not in tree\n", msg.key);
+                    //printTree();
+                    printf("Parent keys "); node->parent->printKeys();
+                    node->printKeys();
                     exit(0);
                 }
                 break;
-            case INSERT: 
+            case INSERT:
+                //printf("Inserting %i\n", msg.key); 
                 node->insertKey(msg.key, index);
                 ++N;
             default: break;
@@ -163,7 +171,7 @@ class BeTree{
                 it = node->buffer.erase(it);
                 if(child->isLeaf()) apply(msg, child);
                 else {
-                    auto it = std::upper_bound(child->buffer.cbegin(), child->buffer.cend(), msg);
+                    auto it = std::upper_bound(child->buffer.begin(), child->buffer.end(), msg);
                     child->buffer.insert(it, msg);
                 }
             } else ++it;
@@ -186,9 +194,9 @@ class BeTree{
             fixLeaf(root);
         }
         else{ // If root is not a leaf -> add msg to its buffer
-            auto it = std::upper_bound(root->buffer.cbegin(), root->buffer.cend(), msg);
+            auto it = std::upper_bound(root->buffer.begin(), root->buffer.end(), msg);
             root->buffer.insert(it, msg);
-            if(root->buffer.size() > B-Beps) flush(root);         
+            while(root->buffer.size() > B) flush(root);         
         }           
     }
 

@@ -115,14 +115,14 @@ class Node{
     }
 
     bool bigEnough(int B, int Beps) {
-        return (isLeaf() && keys.size() >= ceil((double) B/2)) || (!isLeaf() && keys.size() >= ceil((double) Beps/2));
+        return (isLeaf() && keys.size() > static_cast<int>(ceil((double) B/2))) || (!isLeaf() && keys.size() > static_cast<int>(ceil((double) Beps/2)));
     }
     bool tooSmall(int B, int Beps){
-        return (isLeaf() & keys.size() <  ceil((double) B/2)-1) || (!isLeaf() && keys.size() <  ceil((double) Beps/2)-1);
+        return (isLeaf() & keys.size() < static_cast<int>(ceil((double) B/2))) || (!isLeaf() && keys.size() < static_cast<int>(ceil((double) Beps/2)));
     }
     
     bool tooBig(int B, int Beps){
-        return (isLeaf() && keys.size() > B) || (!isLeaf() && keys.size() > Beps);
+        return (isLeaf() && keys.size() > std::max(B,2)) || (!isLeaf() && keys.size() > std::max(Beps, 2));
     }
 
     void annihilateMatching(){
@@ -226,7 +226,9 @@ class Node{
         Node* child = sibling->children[eraseChildIndex];
         for(auto it=sibling->buffer.begin(); it!=sibling->buffer.end();){
             Message msg = *it;
-            if(msg.key >= child->keys[0] && msg.key <= child->keys[child->keys.size()-1]){
+            int msgChild = sibling->findChild(msg.key);
+            //if(msg.key >= child->keys[0] && msg.key <= child->keys[child->keys.size()-1]){
+            if(sibling->children[msgChild] == child){
                 buffer.push_back(msg);
                 it = sibling->buffer.erase(it);
             } else it++;
@@ -248,6 +250,7 @@ class Node{
             left = false;
         }
         //int keyDownIndex = std::max(myIndex()-left, 0);
+        //printf("Merging: "); printKeys(); printf(" with :"); sibling->printKeys();
         int keyDownIndex = myIndex();
         if(keyDownIndex == parent->keys.size()) --keyDownIndex;
         else keyDownIndex = std::max(keyDownIndex-left, 0);
@@ -273,5 +276,7 @@ class Node{
             keys.insert(keys.begin()+insertIndex, keyDown);
         }
         parent->keys.erase(parent->keys.begin()+keyDownIndex);                    
+        // printf("Parent keys after merge "); parent->printKeys();
+        // printf("Merged node keys "); printKeys();                   
     }
 };

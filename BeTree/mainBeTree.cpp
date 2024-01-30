@@ -27,7 +27,6 @@ void testCase2(){
     for(int i=11; i<=21; i++) t.insertUpdate(i, INSERT);
     t.insertUpdate(34, INSERT);
     for(int i=40; i<50; i++) t.insertUpdate(i, INSERT);
-    std::cout << "Before DELETE updates\n";
     //t.printTree();
     for(int i=1; i<=15; i++) {
         t.insertUpdate(i, DELETE);
@@ -117,11 +116,33 @@ void testCase9(){
     /*
     Tests insertion
     */
-    BeTree t = BeTree(10, 0.5);
+    BeTree t = BeTree(10, 0.25);
     for(int i=1; i<=2000; i++) t.insertUpdate(i, INSERT);
-    t.printTree();
+    //t.printTree();
     //printf("%i\n", t.predecessor(1999));
 }
+
+void testCase10(){
+    // Key Not in tree
+    BeTree t = BeTree(50, EPS);
+    for(int i=1; i<=1000000; i++) t.insertUpdate(i, INSERT);
+    //t.printTree();
+    for(int i=1000000; i>0; i--) t.insertUpdate(i, DELETE);
+    //t.printTree();
+}
+
+void testCase11(){
+    // 
+    BeTree t = BeTree(50, EPS);
+    for(int i=1; i<=1000000; i++) t.insertUpdate(i, INSERT);
+    //t.printTree();
+    for(int i=1000000; i>500000; i--) t.insertUpdate(i, DELETE);
+    for(int i=1; i<500000; ++i) t.insertUpdate(i, DELETE);
+    //t.printTree();
+}
+
+//TODO: Test different values of EPS
+
 
 
 int main(){
@@ -143,6 +164,10 @@ int main(){
     testCase8();
     printf("\n------------------------------TEST CASE 9--------------------------\n\n");
     testCase9();
+    printf("\n------------------------------TEST CASE 10--------------------------\n\n");
+    testCase10();
+    printf("\n------------------------------TEST CASE 11--------------------------\n\n");
+    testCase11();
 
 
     return 0;

@@ -67,8 +67,8 @@ void testCase6(){
     BTree t = BTree(10);
     for(int i=1; i<=300; ++i) t.insert(i);
     //t.printTree();
-    int pred = 3;
-    printf("Predecessor of %i: %i\n", pred, t.predecessor(pred));
+    //int pred = 3;
+    //printf("Predecessor of %i: %i\n", pred, t.predecessor(pred));
 }
 
 void testCase7(){
@@ -77,7 +77,7 @@ void testCase7(){
     //t.printTree();
     t.remove(3);
     for(int i=10; i<= 300; ++i) t.remove(i);
-    t.printTree();
+    //t.printTree();
 }
 
 void testCase8(){
@@ -89,6 +89,7 @@ void testCase9(){
     BTree t = BTree(20);
     for(int i=1; i<= 100000; i++) t.insert(i);
     for(int i=1; i<50000; ++i) t.remove(i);
+    //t.printTree();
 }
 
 void testCase10(){
@@ -97,6 +98,23 @@ void testCase10(){
     for(int i=1; i<=9000000; i++) t.insert(i);
     //t.printTree();
     for(int i=1000000; i>0; i--) t.remove(i);
+    //t.printTree();
+}
+
+void testCase11(){
+    // Flushing cascades! (EPS = 0.5, B=50, insert 9'000'000, delete 1'000'000)
+    BTree t = BTree(50);
+    for(int i=1; i<=1000000; i++) t.insert(i);
+    for(int i=1000000; i>0; i--) t.remove(i);
+    //t.printTree();
+}
+
+void testCase12(){
+    BTree t = BTree(50);
+    for(int i=1; i<=1000000; i++) t.insert(i);
+    //t.printTree();
+    for(int i=1000000; i>500000; i--) t.remove(i);
+    for(int i=1; i<500000; ++i) t.remove(i);
     //t.printTree();
 }
 
@@ -121,7 +139,11 @@ int main(int argc, char** argv){
     std::cout << "------------------------------TEST CASE 9----------------------------\n";
     testCase9();  
     std::cout << "------------------------------TEST CASE 10----------------------------\n";
-    testCase10();  
+    testCase10();
+    std::cout << "------------------------------TEST CASE 11----------------------------\n";
+    testCase11();
+    std::cout << "------------------------------TEST CASE 12----------------------------\n";
+    testCase12();  
 
 
     return 0;

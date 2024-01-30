@@ -1,10 +1,11 @@
 #include <fstream>
+#include <algorithm>
 #include "Node.cpp"
 
 class BTree{
 
     public:
-    unsigned B;
+    int B;
     Node* root;
     int N;
 
@@ -12,6 +13,7 @@ class BTree{
         B = BIn;
         root = NULL;
         N = 0;
+        printf("B = %i\n", B);
     }
 
     void printTree(){
@@ -81,8 +83,8 @@ class BTree{
             root = new Node(NULL, std::vector<Node*>{}, std::vector<int>{key});
             return;
         } // Handle root overflow
-        else if(root->keys.size() >= B) {
-            root->split(0, B/2);
+        else if(root->keys.size() > std::max(B, 2)) {
+            root->split();
             root = root->parent;
         }
         // Root node is already created -> find appropriate leaf
@@ -94,8 +96,8 @@ class BTree{
             Node* next = curr->children[index];
             ++blockTransfers;
             // Check if split is needed + Update variables
-            if(next->keys.size() >= B){
-                next->split(index, B/2);
+            if(next->keys.size() > std::max(B, 2)){
+                next->split();
                 blockTransfers += 2;
                 curr = next->parent;
             } else curr = next;
@@ -106,92 +108,66 @@ class BTree{
         ++N;
     }
 
-    void deleteFromInternal(Node* curr, int index, int& key, Node* next, int* blockTransfers = 0){
-        // Find child y/z that preceds/succeds k
-        Node* predecessor = curr->getPredecessor(index);
-        Node* successor = curr->getSuccessor(index);
-
-        // Find predecessor key and remove it recursively
-        if(predecessor != curr && predecessor->keys.size() >= floor((B)/2)+1){
-            int predKey = predecessor->keys[predecessor->keys.size()-1];
-            curr->keys[index] = predKey;
-            key = predKey;
-            next = predecessor;
-            ++blockTransfers;
-        }
-        // Find successor key and remove it recursively
-        else if(successor != curr && successor->keys.size() >= floor((B)/2)+1){
-            int succKey = successor->keys[0];
-            curr->keys[index] = succKey;
-            key = succKey;
-            next = successor;
-            ++blockTransfers;
-        }
-        // Merging predecessor with successor
-        else{
-            predecessor->insertKey(key, predecessor->keys.size());
-            predecessor->mergePredSucc(successor);
-            int keyIndex = curr->findChild(key);
-            curr->keys.erase(curr->keys.begin()+keyIndex);
-            // NOT SURE ABOUT THIS
-            if(predecessor->parent != successor->parent){
-                int insertIndex = curr->findChild(successor->parent->keys[0]);
-                curr->keys.insert(curr->keys.begin()+insertIndex, successor->parent->keys[0]);
-                successor->parent->keys.erase(successor->parent->keys.begin());
+    void fixSmall(Node* node, unsigned& blockTransfers){
+        Node* curr = node;
+        while(curr && curr->parent && curr->keys.size() < static_cast<int>(ceil((double) B/2))){
+            Node* leftSibling = curr->getLeftSibling();
+            Node* rightSibling = curr->getRightSibling();
+            // Borrow from left sibling
+            if(leftSibling != NULL && leftSibling->keys.size() >= static_cast<int>(ceil((double) B/2))) {
+                curr->borrowLeft(leftSibling);
+                ++blockTransfers;
             }
-            next = predecessor; // Update variable
-            blockTransfers += 2;
-        }
+            // Borrow from right sibling
+            else if(rightSibling != NULL && rightSibling->keys.size() >= static_cast<int>(ceil((double) B/2))) {
+                curr->borrowRight(rightSibling);
+                ++blockTransfers;
+            }
+            //Merging node with one of his siblings
+            else{
+                curr->merge();
+                blockTransfers += 2;
+                // Tree shrinks
+                if(root->keys.size()==0){
+                    root = root->children[0];
+                    root->setParent(NULL);
+                    for(int i=1; i<root->children.size(); i++) root->children[i]->setParent(root);
+                }
+                if(curr->keys.size() > std::max(B, 2)) {
+                    curr->split();
+                    blockTransfers += 2;
+                }
+            }
+            curr = curr->parent;
+        }        
+
     }
 
-
     void remove(int key){
-        int blockTransfers = 0;
+        unsigned blockTransfers = 0;
         Node* curr = root;
-        int index = curr->findChild(key);
-        while(curr!=NULL && !curr->isLeaf()){
-            Node* next = curr->children[index];
+        int keyIndex = curr->findChild(key);
+        // Find node containing key to delete
+        while(curr->keys[keyIndex] != key && !curr->isLeaf()){
+            curr = curr->children[keyIndex];
+            keyIndex = curr->findChild(key);
             ++blockTransfers;
-            // Check if next child has enough keys
-            if(next->keys.size() < (B/2)){
-                Node* leftSibling = (index > 0) ? curr->children[index - 1] : NULL;
-                Node* rightSibling = (index < curr->children.size()-1) ? curr->children[index + 1] : NULL;
-                // Borrow from left sibling
-                if(leftSibling != NULL && leftSibling->keys.size() >= (B/2)) {
-                    next->borrowLeft(leftSibling);
-                    ++blockTransfers;
-                }
-                // Borrow from right sibling
-                else if(rightSibling != NULL && rightSibling->keys.size() >= (B/2)) {
-                    next->borrowRight(rightSibling);
-                    ++blockTransfers;
-                }
-                //Merging next child with one of his siblings
-                else{
-                    next->merge();
-                    blockTransfers += 2;
-                    // Tree shrinks
-                    if(curr == root && curr->keys.empty()) {
-                        curr->children[0]->setParent(NULL);
-                        root = curr->children[0]; // new root
-                        curr->children.erase(curr->children.begin());
-                        for(int i=1; i<root->children.size(); i++) root->children[i]->setParent(root);
-                    }
-                }
-            }
-            //Delete from internal node
-            if(curr->keys[index] == key) deleteFromInternal(curr, index, key, next, &blockTransfers);
-
-            curr = next;
-            index = curr->findChild(key);
         }
-        // Will have reached a leaf here
-        if(curr != NULL && curr->isLeaf() && curr->keys[index] == key){
-            curr->keys.erase(curr->keys.begin()+index);
-            //printf("Deleting in a B-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double) log2(N)/log2(B)), N, B, blockTransfers);
-            --N;
-        } else {
-            std::cout << "Key " << key << " not in tree!\n";
+        // Reached node
+        if(curr->isLeaf() && curr->keys[keyIndex] == key){ // Leaf node case
+            //printf("Found key %i in LEAF node\n", key);
+            curr->keys.erase(curr->keys.begin()+keyIndex);
+            fixSmall(curr, blockTransfers);
+        } else if(curr->keys[keyIndex] == key){ // Internal node case (Replace with predecessor key)
+            Node* predecessor = curr->getPredecessor(keyIndex);
+            ++blockTransfers;
+            int predKey = predecessor->keys[predecessor->keys.size()-1];
+            curr->keys[keyIndex] = predKey;
+            predecessor->keys.pop_back();
+            fixSmall(predecessor, blockTransfers);
+        } else{
+            printf("Key %i not in tree\n", key);
+            printTree();
             exit(0);
         }
     }

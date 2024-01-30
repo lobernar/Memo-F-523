@@ -11,6 +11,8 @@ class Node{
 
     Node(Node* parentIn){
         parent = parentIn;
+        // keys = std::vector<int>{};
+        // children = std::vector<Node*>{};
     }
 
     Node(Node* parentIn, std::vector<Node*> childrenIn, std::vector<int> keysIn){
@@ -87,13 +89,13 @@ class Node{
 
     Node* getLeftSibling(){
         int index = parent->findChild(keys[0]);
-        if(index == 0) return this;
+        if(index == 0) return NULL;
         return parent->children[index-1];
     }
 
     Node* getRightSibling(){
         int index = parent->findChild(keys[0]);
-        if(index == keys.size()-1) return this;
+        if(index == parent->keys.size()) return NULL;
         return parent->children[index+1];
     }
 
@@ -104,26 +106,24 @@ class Node{
         return -1;
     }
 
-    void moveKeyToChild(Node* child, int index, int insertIndex){
-        printf("Moving key %i from parent to child\n", keys[index]);
-        child->keys.insert(child->keys.begin() + insertIndex, keys[index]);
-        keys.erase(keys.begin() + index); 
-    }
-
     void moveChild(Node* sibling, int eraseChildIndex, int insertIndex){
         children.insert(children.begin()+insertIndex, sibling->children[eraseChildIndex]);
         sibling->children[eraseChildIndex]->setParent(this);
         sibling->children.erase(sibling->children.begin()+eraseChildIndex);
     }
 
-    void split(int index, int half){
+    void split(){
         // Idea: keep "this" as new left node and only create new right node + delete children/keys from "this"
+        int half = keys.size()/2;
         int keyUp = keys[half];
         Node* newRight;
         std::vector<Node*> rightChildren = {};
         std::vector<int> rightKeys = {keys.begin()+half+1, keys.end()};
         // Push key to parent (or create new root)
-        if(parent != NULL) parent->insertKey(keyUp, index);
+        if(parent != NULL) {
+            int myIndex = parent->findChild(keys[0]);
+            parent->insertKey(keyUp, myIndex);
+        }
         else parent = new Node(NULL, {this}, {keyUp}); 
         // Handle children
         if(!isLeaf()) {
@@ -141,31 +141,11 @@ class Node{
         parent->insertChild(newRight, rightIndex);
     }
 
-    // void merge(Node* other, bool left){
-    //     int keyIndex = (left) ? 0 : keys.size();
-    //     int childIndex = (left) ? 0 : children.size();
-    //     // Merging keys and children into current node
-    //     keys.insert(keys.begin()+keyIndex, other->keys.begin(), other->keys.end());
-    //     for(Node* child : other->children){
-    //         if(child != NULL) child->setParent(this); // Update parent of merged node
-    //     }
-    //     children.insert(children.begin()+childIndex, other->children.begin(), other->children.end());
-
-    //     // Deleting merged node from it's parent's children
-    //     int mergedIndex = other->parent->findChild(other->keys[0]);
-    //     other->parent->children.erase(other->parent->children.begin()+mergedIndex);
-
-    //     //Move median key in merged node
-    //     int index = parent->findChild(keys[0]);
-    //     int insertIndex = findChild(parent->keys[index]);
-    //     parent->moveKeyToChild(this, index, insertIndex); 
-    // }
-
     void merge(){
         //printKeys();
         Node* sibling = getLeftSibling();
         int keyIndex = 0, childIndex = 0;
-        if(sibling == this){
+        if(sibling == NULL){
             sibling = getRightSibling();
             keyIndex = keys.size();
             childIndex = children.size();
@@ -189,14 +169,6 @@ class Node{
         int keyDown = parent->keys[keyDownIndex];
         keys.insert(keys.begin()+insertIndex, keyDown);
         parent->keys.erase(parent->keys.begin()+keyDownIndex);
-    }
-
-    void mergePredSucc(Node* successor){
-        // Merging keys into predecessor node
-        keys.insert(keys.end(), successor->keys.begin(), successor->keys.end());
-        // Deleting merged node from it's parent's children
-        int mergedIndex = successor->parent->findChild(successor->keys[0]);
-        successor->parent->children.erase(successor->parent->children.begin()+mergedIndex);
     }
 
     void borrowLeft(Node* sibling){

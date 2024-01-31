@@ -118,6 +118,15 @@ void testCase12(){
     //t.printTree();
 }
 
+void testCase13(){
+    // Test insertion in different order
+    BTree t = BTree(50);
+    for(int i=500000; i>1; i--) t.insert(i);
+    //t.printTree();
+    for(int i=500001; i<1000000; ++i) t.insert(i);
+    //t.printTree();
+}
+
 
 int main(int argc, char** argv){
     std::cout << "------------------------------TEST CASE 1----------------------------\n";
@@ -143,7 +152,9 @@ int main(int argc, char** argv){
     std::cout << "------------------------------TEST CASE 11----------------------------\n";
     testCase11();
     std::cout << "------------------------------TEST CASE 12----------------------------\n";
-    testCase12();  
+    testCase12();
+    std::cout << "------------------------------TEST CASE 13----------------------------\n";
+    testCase13();  
 
 
     return 0;

@@ -123,7 +123,7 @@ void testCase9(){
 }
 
 void testCase10(){
-    // Key Not in tree
+    // Flushing cascades
     BeTree t = BeTree(50, EPS);
     for(int i=1; i<=1000000; i++) t.insertUpdate(i, INSERT);
     //t.printTree();
@@ -132,12 +132,21 @@ void testCase10(){
 }
 
 void testCase11(){
-    // 
+    // Flushing cascades
     BeTree t = BeTree(50, EPS);
     for(int i=1; i<=1000000; i++) t.insertUpdate(i, INSERT);
     //t.printTree();
     for(int i=1000000; i>500000; i--) t.insertUpdate(i, DELETE);
     for(int i=1; i<500000; ++i) t.insertUpdate(i, DELETE);
+    //t.printTree();
+}
+
+void testCase12(){
+    // Test insertion in different order
+    BeTree t = BeTree(50,EPS);
+    for(int i=500000; i>1; i--) t.insertUpdate(i, INSERT);
+    //t.printTree();
+    for(int i=500001; i<1000000; ++i) t.insertUpdate(i, INSERT);
     //t.printTree();
 }
 
@@ -168,6 +177,8 @@ int main(){
     testCase10();
     printf("\n------------------------------TEST CASE 11--------------------------\n\n");
     testCase11();
+    printf("\n------------------------------TEST CASE 12--------------------------\n\n");
+    testCase12();
 
 
     return 0;

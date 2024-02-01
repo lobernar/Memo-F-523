@@ -106,12 +106,7 @@ class BeTree{
             else if(rightSibling != curr && rightSibling && rightSibling->bigEnough(B, Beps)) curr->borrowRight(rightSibling);
             // Merge with one of the sibling
             else curr->merge();
-
-            // Update parent key if needed
-            for(int i = 0; i<curr->keys.size(); ++i){
-                if(!curr->isLeaf() && curr->children[0]->isLeaf() && curr->keys[i] != curr->children[i]->keys.back()) 
-                                            curr->keys[i] = curr->children[i]->keys.back();
-            }
+            
             // Check buffer overflow
             bool cascades = false;
             while(curr->buffer.size() > B-Beps){
@@ -177,11 +172,11 @@ class BeTree{
         }
         if(!child->isLeaf()) child->annihilateMatching(); // Annihilate matching ins/del operations
         else fixLeaf(child);
+        // Flush child if needed
+        while(child->buffer.size() > B-Beps) flush(child, true);
         //if(!cascades && blockTransfers > ceil((double) log2(N)/log2(B))) printf("Height: %f, blocktransfers: %i\n", ceil((double) log2(N)/log2(B)), blockTransfers);
         if(!cascades) blockTransfers=0;
         //printf("Applying %f updates in a Be-tree of height %f required %i block transfers\n", ceil((double) pow(B, 1-eps)), ceil((double) log2(N)/log2(B)), blockTransfers);
-        // Flush child if needed
-        while(child->buffer.size() > B-Beps) flush(child);
 
     }
 

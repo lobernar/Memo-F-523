@@ -118,7 +118,7 @@ class Node{
         return (isLeaf() && keys.size() > static_cast<int>(ceil((double) B/2))) || (!isLeaf() && keys.size() > static_cast<int>(ceil((double) Beps/2)));
     }
     bool tooSmall(int B, int Beps){
-        return (isLeaf() & keys.size() < static_cast<int>(ceil((double) B/2))) || (!isLeaf() && keys.size() < static_cast<int>(ceil((double) Beps/2)));
+        return (isLeaf() && keys.size() < static_cast<int>(ceil((double) B/2))) || (!isLeaf() && keys.size() < static_cast<int>(ceil((double) Beps/2)));
     }
     
     bool tooBig(int B, int Beps){
@@ -227,7 +227,6 @@ class Node{
         for(auto it=sibling->buffer.begin(); it!=sibling->buffer.end();){
             Message msg = *it;
             int msgChild = sibling->findChild(msg.key);
-            //if(msg.key >= child->keys[0] && msg.key <= child->keys[child->keys.size()-1]){
             if(sibling->children[msgChild] == child){
                 buffer.push_back(msg);
                 it = sibling->buffer.erase(it);

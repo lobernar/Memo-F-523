@@ -230,11 +230,6 @@ class BdTree{
                 Message msg = root->buffer.front();
                 root->buffer.erase(root->buffer.begin());
                 apply(msg, root);
-                // for(auto it = root->buffer.begin(); it != root->buffer.end();){
-                //     Message msg = *it;
-                //     it = root->buffer.erase(it);
-                //     apply(msg, root);
-                // }
             } else flush(root);
         }
         ++updatesCounter;

@@ -29,13 +29,13 @@ class Node{
     Node(Node* parentIn, std::vector<Node*> childrenIn, std::vector<int> keysIn): parent(parentIn), children(childrenIn), keys(keysIn){
         //DISK-WRITE
         buffer = std::vector<Message>{};
-        maxVect = {0}, minVect = {INT16_MAX};
+        maxVect = {0}, minVect = {0};
     }
     
     Node(Node* parentIn, std::vector<Node*> childrenIn, std::vector<int> keysIn, std::vector<Message> buffIn): parent(parentIn), 
         children(childrenIn), keys(keysIn), buffer(buffIn){
         //DISK-WRITE
-        maxVect = {0}, minVect = {INT16_MAX};
+        maxVect = {0}, minVect = {0};
     }
     
     /*
@@ -55,11 +55,18 @@ class Node{
         std::cout << "Buffer: [ ";
         for(Message msg:buffer) std::cout << msg.key << " "; 
         
-        std::cout << "] \n";
+        std::cout << "]";
 
-        // printf("Max vect: ");
-        // for(int val : maxVect) printf("%i, ", val);
-        // printf("\n");
+        if(!isMicroLeaf()){
+            printf(" Max vect: ");
+            for(int val : maxVect) printf("%i, ", val);     
+        }
+        printf("  ");
+        if(!isMicroLeaf()){
+            printf(" Min vect: ");
+            for(int val : minVect) printf("%i, ", val);     
+        }
+        printf("\n");
 
         // enter the next tree level
         if(!isMicroLeaf()){
@@ -72,6 +79,8 @@ class Node{
     }
 
     void printKeys(){ for(int key: keys) std::cout << key << " ";
+                        std::cout << std::endl;}
+    void printMaxVect(){ for(int size: maxVect) std::cout << size << " ";
                         std::cout << std::endl;}
     
     void setParent(Node* parentIn){ parent = parentIn;}
@@ -86,24 +95,14 @@ class Node{
     }
 
     int getLeafSize(){
-        int res = 0;
-        for(Node* child : children){
-            for(int key : child->keys){
-                bool deleted = false;
-                for(Message msg : buffer) { // Annihilate matching INS/DEL updates
-                    if(msg.key == key && msg.op == DELETE){
-                        deleted = true;
-                        break;
-                    }
-                }
-                if(!deleted) ++res;
-            }
+        int insCounter = 0, delCounter = 0;
+        for(Message msg : buffer){
+            if(msg.op == DELETE) ++delCounter;
+            else if(msg.op == INSERT) ++insCounter;
         }
 
-        for(Message msg : buffer) {
-            if(msg.op != DELETE) ++res;
-        }
-        return res;
+        for(Node* child : children) insCounter += child->keys.size();
+        return insCounter-delCounter;
     }
 
     int getMaxLeafIndex() {
@@ -125,7 +124,12 @@ class Node{
         return i;
     }
 
-    int myIndex() {return (keys.size() > 0) ? parent->findChild(keys[0]) : 0;}
+    int myIndex() {
+        for(int i=0; i<parent->children.size(); ++i){
+            if(parent->children[i] == this) return i;
+        }
+        return -1;
+    }
 
     int findFlushingChild(){
         if(keys.empty()) return 0;
@@ -179,8 +183,6 @@ class Node{
         } else if(!isMicroLeaf()) {
             int bigIndex = getMaxLeafIndex();
             int smallIndex = getMinLeafIndex();
-            int parentMax = parent->maxVect[index];
-            int parentMin = parent->minVect[index];
             parent->maxVect[index] = maxVect[bigIndex];
             parent->minVect[index] = minVect[smallIndex];                        
         }
@@ -228,17 +230,17 @@ class Node{
         // Handle min/max vectors
         if(!isMicroLeaf()){
             parent->maxVect.insert(parent->maxVect.begin() + rightIndex, 0);
-            parent->minVect.insert(parent->minVect.begin() + rightIndex, INT16_MAX);
-            if(!isMicroRoot()){
+            parent->minVect.insert(parent->minVect.begin() + rightIndex, 0);
+            if(!isMicroRoot() && !isMicroLeaf()){
                 std::vector<int> newMaxVect = {maxVect.begin()+half+1, maxVect.end()};
                 std::vector<int> newMinVect = {minVect.begin()+half+1, minVect.end()};
                 maxVect.erase(maxVect.begin()+half+1, maxVect.end());
                 minVect.erase(minVect.begin()+half+1, minVect.end());
                 newRight->maxVect = newMaxVect;
                 newRight->minVect = newMinVect;
-            }    
+            }
             updateParentAux();
-            newRight->updateParentAux();    
+            newRight->updateParentAux();
         }
     }
 
@@ -249,17 +251,24 @@ class Node{
     */
 
     void merge(int threshold){
-        // Maybe replace leaf variable with isMicroRoot()?
         Node* sibling = getLeftSibling();
         int keyIndex = 0, childIndex = 0, buffIndex = 0, auxIndex = 0;
-        if(sibling == this || (isMicroRoot() && sibling->keys.size() > threshold)){
+        bool left = true;
+        if(sibling == this || (isMicroRoot() && sibling->getLeafSize() > threshold)){
             sibling = getRightSibling();
             keyIndex = keys.size();
             childIndex = children.size();
             buffIndex = buffer.size();
             auxIndex = maxVect.size();
+            left = false;
         }
-        if(isMicroRoot() && sibling->keys.size() > threshold) return; // Don't merge if sibling has enough keys
+        if(isMicroRoot() && sibling->getLeafSize() > threshold) return;
+        else if(sibling == this) return;
+        int keyDownIndex = myIndex();
+        int siblingIndex = sibling->myIndex();
+        if(keyDownIndex == parent->keys.size()) --keyDownIndex;
+        else keyDownIndex = std::max(keyDownIndex-left, 0);
+
         // Merging keys and children into current node
         keys.insert(keys.begin()+keyIndex, sibling->keys.begin(), sibling->keys.end());
         for(Node* child : sibling->children){
@@ -272,9 +281,6 @@ class Node{
         sibling->buffer.clear();
 
         // Deleting merged node from it's parent's children
-        int siblingIndex = sibling->myIndex();
-        int keyDownIndex = std::max(myIndex()-1, 0);
-        if(keyDownIndex == parent->keys.size()) --keyDownIndex;
         int mergedIndex = parent->findChild(sibling->keys[0]);
         parent->children.erase(parent->children.begin()+mergedIndex);
 
@@ -286,13 +292,15 @@ class Node{
         }
         parent->keys.erase(parent->keys.begin()+keyDownIndex);
 
-        // Handle min/max vectors
-        parent->maxVect.erase(parent->maxVect.begin()+siblingIndex);
-        parent->minVect.erase(parent->minVect.begin()+siblingIndex);
-        if(!isMicroRoot() && !isMicroLeaf()) {
+        // Handling min/max vectors
+        if(!isMicroLeaf() && !isMicroRoot()){
             maxVect.insert(maxVect.begin()+auxIndex, sibling->maxVect.begin(), sibling->maxVect.end());
-            minVect.insert(minVect.begin()+auxIndex, sibling->minVect.begin(), sibling->minVect.end());
+            minVect.insert(minVect.begin()+auxIndex, sibling->minVect.begin(), sibling->minVect.end());    
         }
-        if(!isMicroLeaf()) updateParentAux();
+        if(!isMicroLeaf()){
+            parent->maxVect.erase(parent->maxVect.begin()+siblingIndex);
+            parent->minVect.erase(parent->minVect.begin()+siblingIndex);
+            updateParentAux();
+        }
     }
 };

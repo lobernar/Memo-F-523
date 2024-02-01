@@ -78,6 +78,7 @@ void testCase7(){
     t.remove(3);
     for(int i=10; i<= 300; ++i) t.remove(i);
     //t.printTree();
+    t.gernerateSVG("btree.dot", "btree.svg");
 }
 
 void testCase8(){

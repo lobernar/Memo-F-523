@@ -10,6 +10,7 @@ void testCase1(){
     for(int i=1; i<=2000; i++) t.insertUpdate(i, INSERT);
     //t.printTree();
     //printf("%i\n", t.predecessor(1999));
+    t.gernerateSVG("bdtree.dot", "bdtree.svg");
 }
 
 void testCase2(){
@@ -20,7 +21,6 @@ void testCase2(){
     BdTree t = BdTree(50, DELTA, N);
     for(int i=1; i<=200000; i++) t.insertUpdate(i, INSERT);
     //t.printTree();
-    //t.generateDotFile();
 }
 
 void testCase3(){

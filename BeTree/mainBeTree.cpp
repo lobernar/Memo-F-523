@@ -100,7 +100,7 @@ void testCase7(){
     //t.printTree();
     for(int i=200; i>0; i--) t.insertUpdate(i, DELETE);
     //t.printTree();
-    t.generateDotFile();
+    t.gernerateSVG("betree.dot", "betree.svg");
 }
 
 void testCase8(){

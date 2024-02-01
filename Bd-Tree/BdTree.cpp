@@ -79,9 +79,11 @@ class BdTree{
         }
     }
 
-    void gernerateSVGFromDot(const std::string& dotFile, const std::string& svgFile){
+    void gernerateSVG(const std::string& dotFileName, const std::string& svgFile){
+        // Generate DOT file
+        generateDotFile(dotFileName);
         // Construct the command to run the dot utility
-        std::string command = "dot -Tsvg " + dotFile + " -o " + svgFile;
+        std::string command = "dot -Tsvg " + dotFileName + " -o " + svgFile;
 
         // Run the dot command using system()
         int result = system(command.c_str());
@@ -95,8 +97,8 @@ class BdTree{
     }
 
     // Function to generate a DOT file for a B-tree
-    void generateDotFile(){
-        std::ofstream dotFile("bdtree.dot");
+    void generateDotFile(const std::string& dotFileName){
+        std::ofstream dotFile(dotFileName);
         dotFile << "digraph BTree {" << std::endl;
         //dotFile << "rankdir=TB;" << std::endl;
         dotFile << "node [shape = record,height=.5];" << std::endl;
@@ -104,9 +106,6 @@ class BdTree{
         dotFile << "splines = false;" << std::endl;
         generateDotNode(root, dotFile);
         dotFile << "}" <<std::endl;
-
-        // Generate SVG file
-        gernerateSVGFromDot("bdtree.dot", "bdtree.svg");
     }
     
     void generateDotNode(Node* node, std::ofstream& dotFile) {

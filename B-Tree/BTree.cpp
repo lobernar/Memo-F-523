@@ -76,19 +76,20 @@ class BTree{
         return root->search(k);
     }
 
-    void insert(int key){
+    int insert(int key){
+        int blockTransfers = 0;
         // Empty tree
         if(root == NULL) {
             root = new Node(NULL, std::vector<Node*>{}, std::vector<int>{key});
-            return;
+            return ++blockTransfers;
         } // Handle root overflow
         else if(root->keys.size() > std::max(B, 2)) {
             root->split();
             root = root->parent;
+            blockTransfers += 2;
         }
         // Root node is already created -> find appropriate leaf
         Node* curr = root;
-        int blockTransfers = 0;
         int index = curr->findChild(key);
         // Check for nodes to split
         while(!curr->isLeaf() && curr != NULL){
@@ -105,9 +106,10 @@ class BTree{
         curr->insertKey(key, index); // Will have reached a leaf here
         //printf("Inserting in a B-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double)log2(N)/log2(B)), N, B, blockTransfers);
         ++N;
+        return blockTransfers;
     }
 
-    void fixSmall(Node* node, unsigned& blockTransfers){
+    void fixSmall(Node* node, int& blockTransfers){
         Node* curr = node;
         while(curr && curr->parent && curr->keys.size() < static_cast<int>(ceil((double) B/2))){
             Node* leftSibling = curr->getLeftSibling();
@@ -142,8 +144,8 @@ class BTree{
 
     }
 
-    void remove(int key){
-        unsigned blockTransfers = 0;
+    int remove(int key){
+        int blockTransfers = 0;
         Node* curr = root;
         int keyIndex = curr->findChild(key);
         // Find node containing key to delete
@@ -169,6 +171,7 @@ class BTree{
             printTree();
             exit(0);
         }
+        return blockTransfers;
     }
 
     int predecessor(int key){

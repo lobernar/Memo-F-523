@@ -128,34 +128,105 @@ void testCase13(){
     //t.printTree();
 }
 
+void varB(){
+    // FILE* gnuplotPipe = popen("gnuplot -persistent", "w");
+
+    // fprintf(gnuplotPipe, "set xlabel 'Insertion'\n");
+    // fprintf(gnuplotPipe, "set ylabel 'Block Transfers'\n");
+    // fprintf(gnuplotPipe, "set title 'Block Transfers vs. Insertion for diffrent B values'\n");
+    // fprintf(gnuplotPipe, "plot ");
+
+    for(int b=5; b<=100; b+=45){
+        BTree t = BTree(b);
+        std::vector<int> blockTransfers;
+        for(int i=1; i<=1000000; ++i){
+            int block = t.insert(i);
+            blockTransfers.push_back(block);
+        }
+
+        for(int k : blockTransfers) printf("%i, ", k);
+        printf("\n");
+
+        // Create a temporary file to store the data
+        const std::string name = "data" + std::to_string(b) + ".dat";
+        std::ofstream file(name);
+
+        // Write the data to the temporary file
+        for (int j = 0; j < blockTransfers.size(); ++j) {
+            //fprintf(file, "%i %i\n", j + 1, blockTransfers[j]);
+            file << j+1 << " " << blockTransfers[j] << "\n";
+        }
+
+        // Rewind the file pointer to the beginning
+
+        // Send commands to gnuplot to plot data from the temporary file
+        //fprintf(gnuplotPipe, "'-' with lines title 'B = %i' ", b);
+        // Send the data from the temporary file to gnuplot
+        //fprintf(gnuplotPipe, "'%s' with lines title 'B = %i' ", name.c_str(), b);
+        // Close the temporary file
+        // file.close();
+        // if(b<100) fprintf(gnuplotPipe, ", "); //fprintf(gnuplotPipe, "\n replot ");
+        // else fprintf(gnuplotPipe, "\n");
+    }
+    // fprintf(gnuplotPipe, "\n");
+    // pclose(gnuplotPipe);
+    // printf("Plot generated successfully.\n");
+}
+
+void ins1000(){
+    BTree t = BTree(10);
+    std::vector<int> blockTransfers;
+    for(int i=1; i<=1000; ++i){
+        int block = t.insert(i);
+        blockTransfers.push_back(block);
+    }
+
+    for(int k : blockTransfers) printf("%i, ", k);
+    printf("\n");
+
+    // Create a temporary file to store the data
+    const std::string name = "data" + std::to_string(10) + ".dat";
+    std::ofstream file(name);
+
+    // Write the data to the temporary file
+    for (int j = 0; j < blockTransfers.size(); ++j) {
+        //fprintf(file, "%i %i\n", j + 1, blockTransfers[j]);
+        file << j+1 << " " << blockTransfers[j] << "\n";
+    }
+    file.close();
+}
+
 
 int main(int argc, char** argv){
-    std::cout << "------------------------------TEST CASE 1----------------------------\n";
-    testCase1();
-    std::cout << "------------------------------TEST CASE 2----------------------------\n";
-    testCase2();
-    std::cout << "------------------------------TEST CASE 3----------------------------\n";
-    testCase3();
-    std::cout << "------------------------------TEST CASE 4----------------------------\n";
-    testCase4();
-    std::cout << "------------------------------TEST CASE 5----------------------------\n";
-    testCase5(); 
-    std::cout << "------------------------------TEST CASE 6----------------------------\n";
-    testCase6();    
-    std::cout << "------------------------------TEST CASE 7----------------------------\n";
-    testCase7();    
-    std::cout << "------------------------------TEST CASE 8----------------------------\n";
-    testCase8();
-    std::cout << "------------------------------TEST CASE 9----------------------------\n";
-    testCase9();  
-    std::cout << "------------------------------TEST CASE 10----------------------------\n";
-    testCase10();
-    std::cout << "------------------------------TEST CASE 11----------------------------\n";
-    testCase11();
-    std::cout << "------------------------------TEST CASE 12----------------------------\n";
-    testCase12();
-    std::cout << "------------------------------TEST CASE 13----------------------------\n";
-    testCase13();  
+    // std::cout << "------------------------------TEST CASE 1----------------------------\n";
+    // testCase1();
+    // std::cout << "------------------------------TEST CASE 2----------------------------\n";
+    // testCase2();
+    // std::cout << "------------------------------TEST CASE 3----------------------------\n";
+    // testCase3();
+    // std::cout << "------------------------------TEST CASE 4----------------------------\n";
+    // testCase4();
+    // std::cout << "------------------------------TEST CASE 5----------------------------\n";
+    // testCase5(); 
+    // std::cout << "------------------------------TEST CASE 6----------------------------\n";
+    // testCase6();    
+    // std::cout << "------------------------------TEST CASE 7----------------------------\n";
+    // testCase7();    
+    // std::cout << "------------------------------TEST CASE 8----------------------------\n";
+    // testCase8();
+    // std::cout << "------------------------------TEST CASE 9----------------------------\n";
+    // testCase9();  
+    // std::cout << "------------------------------TEST CASE 10----------------------------\n";
+    // testCase10();
+    // std::cout << "------------------------------TEST CASE 11----------------------------\n";
+    // testCase11();
+    // std::cout << "------------------------------TEST CASE 12----------------------------\n";
+    // testCase12();
+    // std::cout << "------------------------------TEST CASE 13----------------------------\n";
+    // testCase13();  
+    printf("----------------------------------Testing Different Values of B----------------------------------\n");
+    varB();
+    ins1000();
 
 
     return 0;

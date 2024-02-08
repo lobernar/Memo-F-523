@@ -60,7 +60,7 @@ void testCase3(){
         t.insertUpdate(i, DELETE);
     }
     //t.printTree();
-    for(int i=1; i<100; i++) t.insertUpdate(i, BLANK);
+    //for(int i=1; i<100; i++) t.insertUpdate(i, BLANK);
     //t.printTree();
 }
 
@@ -151,7 +151,43 @@ void testCase12(){
 }
 
 //TODO: Test different values of EPS
+void varB(){
+    for(int b=5; b<=100; b += 45){
+        BeTree t = BeTree(b, EPS);
+        std::vector<int> blockTransfers;
+        for(int i=1; i<1000000; i++){
+            int tr = t.insertUpdate(i, INSERT);
+            blockTransfers.push_back(tr);
+        }
+        // Create a temporary file to store the data
+        const std::string name = "data" + std::to_string(b) + ".dat";
+        std::ofstream file(name);
 
+        // Write the data to the temporary file
+        for (int j = 0; j < blockTransfers.size(); ++j) {
+            //fprintf(file, "%i %i\n", j + 1, blockTransfers[j]);
+            file << j+1 << " " << blockTransfers[j] << "\n";
+        }
+    }
+}
+
+void ins1000(){
+    BeTree t = BeTree(10, EPS);
+    std::vector<int> blockTransfers;
+    for(int i=1; i<1000; i++){
+        int tr = t.insertUpdate(i, INSERT);
+        blockTransfers.push_back(tr);
+    }
+    // Create a temporary file to store the data
+    const std::string name = "data" + std::to_string(10) + ".dat";
+    std::ofstream file(name);
+
+    // Write the data to the temporary file
+    for (int j = 0; j < blockTransfers.size(); ++j) {
+        //fprintf(file, "%i %i\n", j + 1, blockTransfers[j]);
+        file << j+1 << " " << blockTransfers[j] << "\n";
+    }
+}
 
 
 int main(){
@@ -179,7 +215,8 @@ int main(){
     testCase11();
     printf("\n------------------------------TEST CASE 12--------------------------\n\n");
     testCase12();
-
+    // varB();
+    // ins1000();
 
     return 0;
 }

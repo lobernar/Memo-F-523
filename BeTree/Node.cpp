@@ -186,21 +186,29 @@ class Node{
     */
 
     void borrowLeft(Node* sibling){
-        // Move key from parent down in node
-        int keyDownIndex = parent->findChild(sibling->keys[0]);
-        int keyDown = parent->keys[keyDownIndex];
-        keys.insert(keys.begin(), keyDown);
-        parent->keys.erase(parent->keys.begin()+keyDownIndex);
+        if(isLeaf()){
+            int borrowKey = sibling->keys.back();
+            sibling->keys.pop_back();
+            keys.insert(keys.begin(), borrowKey);
+            int keyUp = sibling->keys.back();
+            int parentIndex = parent->findChild(keyUp);
+            parent->keys[parentIndex] = keyUp;
+        } else {
+            // Move key from parent down in node
+            int keyDownIndex = parent->findChild(sibling->keys[0]);
+            int keyDown = parent->keys[keyDownIndex];
+            keys.insert(keys.begin(), keyDown);
+            parent->keys.erase(parent->keys.begin()+keyDownIndex);
 
-        // Move key from sibling up in parent
-        if(isLeaf()) sibling->keys.pop_back();
-        int keyUp = sibling->keys.back();
-        int insertIndex = parent->findChild(keyUp);
-        parent->keys.insert(parent->keys.begin()+insertIndex, keyUp);
-        if(!isLeaf()) sibling->keys.pop_back();
+            // Move key from sibling up in parent
+            int keyUp = sibling->keys.back();
+            int insertIndex = parent->findChild(keyUp);
+            parent->keys.insert(parent->keys.begin()+insertIndex, keyUp);
+            sibling->keys.pop_back();
 
-        // Handle children
-        if(!isLeaf()) moveChild(sibling, sibling->children.size()-1, 0);
+            // Handle children
+            moveChild(sibling, sibling->children.size()-1, 0);
+        }
     }
 
     void borrowRight(Node* sibling){
@@ -248,8 +256,6 @@ class Node{
             buffIndex = buffer.size();
             left = false;
         }
-        //int keyDownIndex = std::max(myIndex()-left, 0);
-        //printf("Merging: "); printKeys(); printf(" with :"); sibling->printKeys();
         int keyDownIndex = myIndex();
         if(keyDownIndex == parent->keys.size()) --keyDownIndex;
         else keyDownIndex = std::max(keyDownIndex-left, 0);
@@ -274,8 +280,6 @@ class Node{
             int keyDown = parent->keys[keyDownIndex];
             keys.insert(keys.begin()+insertIndex, keyDown);
         }
-        parent->keys.erase(parent->keys.begin()+keyDownIndex);                    
-        // printf("Parent keys after merge "); parent->printKeys();
-        // printf("Merged node keys "); printKeys();                   
+        parent->keys.erase(parent->keys.begin()+keyDownIndex);                  
     }
 };

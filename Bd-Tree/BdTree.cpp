@@ -10,7 +10,7 @@ class BdTree{
     int minLeafSize;
     unsigned height;
     Node* root;
-    unsigned blockTransfers;
+    unsigned blockTransfers, currTr;
     int N; // Number of elements in the tree
     int Nestimate;
     int Nold;
@@ -23,6 +23,7 @@ class BdTree{
     bool mergeLeft;
     int flushChildIndex;
     bool paused;
+    std::vector<int> resTransfers;
     Node* n1;
     Node* n2;
     Node* n3;
@@ -33,6 +34,7 @@ class BdTree{
     BdTree(unsigned BIn, float deltaIn, int N): B(BIn), delta(deltaIn), Nestimate(N) {
         root = NULL;
         blockTransfers = 0;
+        currTr = 0;
         N = 0;
         Nold = 0;
         ci = 1;
@@ -48,14 +50,9 @@ class BdTree{
         paused = false;
         height = ci*logB(Nestimate);
         root = new Node(NULL, {}, {});
+        resTransfers = std::vector<int>{};
         initTree();
         n1 = root;
-        std::cout << "B^d: " << Bdelta << std::endl;
-        std::cout << "B - B^d: " << B - Bdelta << std::endl;
-        printf("logB(N) = %i\n", microLeafSize);
-        printf("B/B^d = %i\n", B/Bdelta);
-        printf("Max leaf size 4Blog_B(N)² = %f\n", 4*B*pow(logB(Nestimate), 2));
-        printf("Min leaf size 2Blog_B(N)² = %f\n", 2*B*pow(logB(Nestimate), 2));
     }
 
     void initTree(){
@@ -69,17 +66,7 @@ class BdTree{
         if(root != NULL) root->printBT("", false);
     }
 
-    void getMaxNodeWidth(Node* node, int* maxWidth) {
-        int nodeWidth  =(node->keys.size()+1)*50;
-        if(nodeWidth>*maxWidth) *maxWidth=nodeWidth;
-        for(Node* child : node->children){
-            int childWidth = (child->keys.size()+1)*50;
-            if(childWidth>*maxWidth) *maxWidth = childWidth;
-            getMaxNodeWidth(child, maxWidth);
-        }
-    }
-
-    void gernerateSVG(const std::string& dotFileName, const std::string& svgFile){
+    void generateSVG(const std::string& dotFileName, const std::string& svgFile){
         // Generate DOT file
         generateDotFile(dotFileName);
         // Construct the command to run the dot utility
@@ -107,31 +94,55 @@ class BdTree{
         generateDotNode(root, dotFile);
         dotFile << "}" <<std::endl;
     }
-    
+
     void generateDotNode(Node* node, std::ofstream& dotFile) {
-        // Generates DOT code for each node
+        // Check if node exists
         if (node) {
+            // Generate label for the node
             std::string nodeLabel = "node_" + std::to_string(reinterpret_cast<uintptr_t>(node));
-            dotFile << nodeLabel << "[label = \"<f0>";
-            
-            for (size_t i = 0; i < node->keys.size(); ++i) {
-                dotFile << " |" << node->keys[i] << "|<f" << (i + 1) << ">";
+
+            // Start node definition
+            dotFile << nodeLabel << " [label=<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\">";
+
+            // Write "Buffer" label
+            if (!node->buffer.empty()) {
+                dotFile << "<tr><td><b>Buffer:</b></td>";
+
+                // Write buffer content
+                for (size_t i = 0; i < node->buffer.size(); ++i) {
+                    dotFile << "<td>";
+                    if(node->buffer[i].op == 0) dotFile << "DEL: ";
+                    else dotFile << "INS: ";
+                    dotFile << node->buffer[i].key << "</td>";
+                }
+                dotFile << "</tr>";
             }
 
-            dotFile << "\"];" << std::endl;
+            // Write "Keys" label
+            dotFile << "<tr><td><b>Keys:</b></td>";
 
+            // Write keys of the node
+            for (size_t i = 0; i < node->keys.size(); ++i) {
+                dotFile << "<td>" << node->keys[i] << "</td>";
+            }
+            dotFile << "</tr>";
+
+            // End node definition
+            dotFile << "</table>>, shape=plaintext];" << std::endl;
+
+            // Recursively call generateDotNode for children
             for (size_t i = 0; i < node->children.size(); ++i) {
                 generateDotNode(node->children[i], dotFile);
-                dotFile << "\"" << nodeLabel << "\":f" << i << " -> \"node_" << reinterpret_cast<uintptr_t>(node->children[i]) << "\";" << std::endl;
+                // Generate edges between parent and children
+                dotFile << "\"" << nodeLabel << "\" -> \"node_" << reinterpret_cast<uintptr_t>(node->children[i]) << "\";" << std::endl;
             }
         }
     }
 
-    double logB(int a) {return log2(a)/log2(B);}
+    int logB(int a) {return log2(a)/log2(B);}
 
-    void fixRoot(){
-        if(root->parent != NULL) root = root->parent;
-        else if(root->keys.size()==0 && !root->children.empty()){
+    void fixRootMerge(){
+        if(root->keys.size()==0 && !root->isMicroLeaf()) {
             root->children[0]->buffer.insert(root->children[0]->buffer.begin(), root->buffer.begin(), root->buffer.end());
             root->buffer.clear();
             root = root->children[0];
@@ -140,62 +151,59 @@ class BdTree{
         }
     }
 
+    void fixRootSplit(){
+        if(root->parent != NULL) root = root->parent;
+        if(root->children[0]->isMicroRoot()){
+            for(Node* child : root->children){
+                root->buffer.insert(root->buffer.begin(), child->buffer.begin(), child->buffer.end());
+                child->buffer.clear();                
+            }
+
+        }
+    }
+    
     void fixMicroLeaf(Node* leaf){
         if(leaf->keys.size() > microLeafSize){
             leaf->split();
+            fixRootSplit();
         }
-        else if(!root->keys.size()==0 && !leaf->parent->keys.empty() && leaf->keys.size() < ceil((double) microLeafSize/2)){
+        // !root->keys.empty() &&
+        else if(!leaf->parent->keys.empty() && leaf->keys.size() < ceil((double) microLeafSize/2)){
             leaf->merge(microLeafSize);
-            fixRoot();
+            fixRootMerge();
         }
-    }
-
-    void insert(Node* node, int key){
-        int index = node->findChild(key);
-        node->insertKey(key, index);
-        ++N;
-    }
-
-    void remove(Node* node, int key){
-        int index = node->findChild(key);
-        // Key not in tree
-        if(node->keys[index] != key){
-            printf("Key %i not in tree\n", key);
-            exit(0);
-            return;
-        }
-        // Remove from micro-leaf
-        node->keys.erase(node->keys.begin()+index); 
-        --N;
     }
 
     void apply(Message msg, Node* node){
+        int index = node->findChild(msg.key);
         switch(msg.op){
             case DELETE: 
                 //printf("Removing %i\n", msg.key);
-                remove(node, msg.key);
-                // Handle empty root case
-                if(root->keys.size()==0 && node != root){
-                    root->children[0]->buffer.insert(root->children[0]->buffer.begin(), root->buffer.begin(), root->buffer.end());
-                    root->buffer.clear();
-                    root = root->children[0];
-                    root->setParent(NULL);
-                    for(int i=1; i<root->children.size(); i++) root->children[i]->setParent(root);
+                if(node->keys[index] == msg.key) {
+                    node->keys.erase(node->keys.begin()+index);
+                    --N;
+                }
+                else {
+                    // printTree();
+                    printf("Key %i not in tree\n", msg.key);
+                    node->printKeys();
+                    node->parent->printKeys();
+                    exit(0);
                 }
                 break;
-            case INSERT: 
-                insert(node, msg.key);
-                // Handle new root case
-                if(root->parent != NULL) root = root->parent;
-                break;
+            case INSERT:
+                //printf("Inserting %i\n", msg.key); 
+                node->insertKey(msg.key, index);
+                ++N;
             default: break;
         }
     }
 
-    void flush(Node* node){
+    void flush(Node* node, bool inCycle=false){
         // Flushes at least O(B^(1-2delta)) updates (pigeonhole principle)
         int childIndex = node->findFlushingChild();
         Node* child = node->children[childIndex];
+        ++blockTransfers;
         for(auto it = node->buffer.begin(); it != node->buffer.end();){
             if(node->findChild(it->key) == childIndex){
                 Message msg = *it;
@@ -208,39 +216,45 @@ class BdTree{
             } else ++it;
         }
         if(child->isMicroLeaf()) fixMicroLeaf(child); 
-        if(!child->isMicroLeaf()) child->annihilateMatching(); // Annihilate matching ins/del operations
+        else if(!child->isMicroLeaf()) child->annihilateMatching(); // Annihilate matching ins/del operations
+        // If flushed to micro-root -> go up the whole tree and update auxiliary info
         if(child->isMicroRoot()) {
             Node* curr = child;
             while(curr != root) {
                 curr->updateParentAux();
                 curr = curr->parent;
+                ++blockTransfers;
             }
         }
-        while(!child->isMicroRoot() && child->buffer.size() > B/Bdelta) flush(child); // NOT SURE ABOUT THIS
-        while(child->isMicroRoot() && child->buffer.size() > (B/Bdelta)*logB(Nestimate)) flush(child);
-
+        // Flush while child buffer overfull
+        while(!inCycle && !child->isMicroLeaf() && child->overfullBuffer(B, Bdelta, Nestimate)) flush(child);
     }
 
-    void insertUpdate(int key, int op){
+    int insertUpdate(int key, int op){
         Message msg{key, op};
         auto it = std::upper_bound(root->buffer.cbegin(), root->buffer.cend(), msg);
         root->buffer.insert(it, msg);
+        root->annihilateMatching();
         while(root->buffer.size() > 2*B/Bdelta) {
             if(root->isMicroLeaf()){
                 Message msg = root->buffer.front();
                 root->buffer.erase(root->buffer.begin());
                 apply(msg, root);
+                //fixMicroLeaf(root); // Needed this in Be-Tree
             } else flush(root);
         }
         ++updatesCounter;
-        if(updatesCounter == ceil((double)(B/(Bdelta*Bdelta)) / (ci*logB(Nestimate)))){ // pow(logB(Nestimate), 3)
+        if(updatesCounter == ceil((double)(B/(Bdelta*Bdelta)) / (ci*logB(Nestimate)))){
             updatesCounter = 0; // Reset counter
             paused = false;
-            cycleWait();
+            continueCycle();
         }
+        int tr = blockTransfers;
+        blockTransfers = 0;
+        return tr;
     }
 
-    void cycleWait() {
+    void continueCycle() {
         while(!paused){
             switch (currStep) {
             case 0: // Setting n1 to root and initialize variables
@@ -256,14 +270,14 @@ class BdTree{
                     pause();
                 } else {
                     ++currStep;
-                    //printf("Reached micro-root\n");
+                    //printf("Reached micro-root \n"); n1->printKeys();
                 }
                 break;
             case 2: // Split/Merging micro-root
                 if(splitPhase && !n1->keys.empty() && n1 != root && n1->getLeafSize() > maxLeafSize) {
                     //printf("Splitting micro-root\n");
                     n1->split();
-                    fixRoot();
+                    fixRootSplit();
                     splitMerged = true;
                     blockTransfers += 2;
                     ++currStep;
@@ -272,21 +286,12 @@ class BdTree{
                 }
                 else if(!splitPhase && n1 != root && !root->keys.empty() && n1->getLeafSize() < minLeafSize){
                     // Merging
-                    //printf("Merging micro-root\n");
                     n1->merge(microLeafSize/2);
                     blockTransfers += 2;
-                    fixRoot();
-                    for(Node* child : n1->children){
-                        if(child->keys.empty()){
-                            //printf("Merging empty micro-leaf after merge\n");
-                            child->merge(microLeafSize);
-                            fixRoot();
-                        }
-                    }
                     // Split if resulting node too big
                     if(n1->getLeafSize() > 5*B*pow(logB(Nestimate), 2)) {
                         n1->split();
-                        fixRoot();
+                        fixRootSplit();
                         blockTransfers += 2;
                     }
                     splitMerged = true;
@@ -296,43 +301,35 @@ class BdTree{
                 break;
             case 3: // Moving n1 to it's parent
                 if(n1 && n1->parent && splitMerged){
-                    //printf("Moving n1 to it's parent\n");
                     n1 = n1->parent;
                     ++currStep;
                     ++blockTransfers;
                     pause();
                 } else currStep = 14; // Go to last step
                 break;
-            case 4: // Split/merging n1 if needed
+            case 4: // Split/merge n1 if needed
                 if(splitPhase && n1->keys.size() > std::max(Bdelta, 2)) {
-                    //printf("Splitting while moving n1 up\n");
                     n1->split();
                     blockTransfers += 2;
-                    fixRoot();
+                    fixRootSplit();
                     ++currStep;
                     pause();
                 }
                 else if(!splitPhase && n1 != root && n1->keys.size() < std::max(Bdelta/2, 2)){
                     // Merging
-                    //printf("Merging while moving n1 up\n");
                     n1->merge(ceil((double) Bdelta/2));
-                    fixRoot();
+                    fixRootMerge();
                     blockTransfers += 2;
                     ++currStep;
                     pause();
                 } else ++currStep;
-                // TODO: Not sure about this
-                if(n1 != root){
-                    //n1->updateParentAux();
-                    //printTree();
-                } 
                 break;
             case 5: // Set n2 to n1
                 n2 = n1;
                 ++currStep;
                 break;
             case 6: // Repeated flushing of split/merged node
-                if(!n2->isMicroRoot() && n2->buffer.size() > B/Bdelta){
+                if(!n2->isMicroRoot() && n2 != root && n2->buffer.size() > B/Bdelta){
                     //printf("Flushing n2 while overfull\n");
                     n3 = n2;
                     ++currStep;
@@ -344,12 +341,12 @@ class BdTree{
                     int flushChildIndex = n3->findFlushingChild();
                     n4 = n3->children[flushChildIndex];
                     ++currStep;
-                    ++blockTransfers;
+                    //++blockTransfers;
                     pause();
                 } else currStep = 9;
                 break;
             case 8: // Flushing n3
-                flush(n3);
+                flush(n3, true);
                 n3 = n4;
                 currStep = 7;
                 break;
@@ -374,12 +371,12 @@ class BdTree{
                     int flushChildIndex = n5->findFlushingChild();
                     n6 = n5->children[flushChildIndex];
                     ++currStep;
-                    ++blockTransfers;
+                    //++blockTransfers;
                     pause();
                 } else currStep = 13;
                 break;
             case 12: // Flushing n5
-                flush(n5);
+                flush(n5, true);
                 n5 = n6;
                 currStep = 11;
                 break;
@@ -394,12 +391,7 @@ class BdTree{
             case 14: // Update variables
             {   splitPhase = !splitPhase;
                 currStep = 0;
-                splitMerged = false;
-                //printf("Finished one cycle with %i block transfers in tree of height %f\n", blockTransfers, ceil((double) logB(N)));
-                int maxblock = height+height*((Bdelta*(height+Bdelta)) + (Bdelta*(height+Bdelta)));
-                //printf("Max number of block transfers: %i\n", maxblock);
-                blockTransfers = 0;
-                pause();
+                if(n1 == root) return;
                 break;
             }
             default:

@@ -11,8 +11,6 @@ class Node{
 
     Node(Node* parentIn){
         parent = parentIn;
-        // keys = std::vector<int>{};
-        // children = std::vector<Node*>{};
     }
 
     Node(Node* parentIn, std::vector<Node*> childrenIn, std::vector<int> keysIn){
@@ -74,16 +72,12 @@ class Node{
         return children[index]->findLeaf(key);
     }
     
-    Node* getPredecessor(int index){
+    Node* getPredecessor(int index, int& blockTr){
         Node* curr = children[index];
         while(!curr->isLeaf()){
             curr = curr->children[curr->children.size()-1];
+            ++ blockTr;
         }
-        return curr;
-    }
-    Node* getSuccessor(int index){
-        Node* curr = children[index+1];
-        while(!curr->isLeaf()) curr = curr->children[0];
         return curr;
     }
 
@@ -142,7 +136,6 @@ class Node{
     }
 
     void merge(){
-        //printKeys();
         Node* sibling = getLeftSibling();
         int keyIndex = 0, childIndex = 0;
         if(sibling == NULL){
@@ -152,7 +145,7 @@ class Node{
         }
         int keyDownIndex = std::max(myIndex()-1, 0);
         if(keyDownIndex == parent->keys.size()) --keyDownIndex;
-        //sibling->printKeys();
+
         // Merging keys and children into current node
         keys.insert(keys.begin()+keyIndex, sibling->keys.begin(), sibling->keys.end());
         for(Node* child : sibling->children){

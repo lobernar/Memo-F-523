@@ -61,7 +61,7 @@ class Node{
     void printKeys(){ for(int key: keys) std::cout << key << " ";
                         std::cout << std::endl;}
 
-    void printBuffer(){ for(Message msg: buffer) std::cout << msg.key << " ";
+    void printBuffer(){ for(Message msg: buffer) printf("| OP %i, KEY: %i |", msg.op, msg.key);
                         std::cout << std::endl;}
     
     void setParent(Node* parentIn){ parent = parentIn;}
@@ -87,7 +87,7 @@ class Node{
     }
 
     int findFlushingChild(){
-        int resArray[children.size()] = {0};
+        int resArray[children.size()+1] = {0};
         for(Message msg : buffer){
             ++resArray[findChild(msg.key)];
         }
@@ -115,10 +115,10 @@ class Node{
     }
 
     bool bigEnough(int B, int Beps) {
-        return (isLeaf() && keys.size() > static_cast<int>(ceil((double) B/2))) || (!isLeaf() && keys.size() > static_cast<int>(ceil((double) Beps/2)));
+        return (isLeaf() && keys.size() > static_cast<int>(ceil((double) B/2))) || (!isLeaf() && keys.size() > std::max(static_cast<int>(ceil((double) Beps/2)), 2));
     }
     bool tooSmall(int B, int Beps){
-        return (isLeaf() && keys.size() < static_cast<int>(ceil((double) B/2))) || (!isLeaf() && keys.size() < static_cast<int>(ceil((double) Beps/2)));
+        return (isLeaf() && keys.size() < static_cast<int>(ceil((double) B/2))) || (!isLeaf() && keys.size() < std::max(static_cast<int>(ceil((double) Beps/2)), 2));
     }
     
     bool tooBig(int B, int Beps){
@@ -204,17 +204,17 @@ class Node{
             int keyUp = sibling->keys.back();
             int insertIndex = parent->findChild(keyUp);
             parent->keys.insert(parent->keys.begin()+insertIndex, keyUp);
-            sibling->keys.pop_back();
 
             // Handle children
             moveChild(sibling, sibling->children.size()-1, 0);
+            sibling->keys.pop_back();
         }
     }
 
     void borrowRight(Node* sibling){
         // Move key from sibling to parent
         int keyUp = sibling->keys[0];
-        sibling->keys.erase(sibling->keys.begin());
+        
         int insertIndex = parent->findChild(keys[0])+1;
         parent->keys.insert(parent->keys.begin()+insertIndex, keyUp);
 
@@ -227,6 +227,7 @@ class Node{
 
         // Handle children
         if(!isLeaf()) moveChild(sibling, 0, children.size());
+        sibling->keys.erase(sibling->keys.begin());
     }
 
     void moveChild(Node* sibling, int eraseChildIndex, int insertIndex){

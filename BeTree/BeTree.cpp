@@ -17,20 +17,16 @@ class BeTree{
 
     BeTree(unsigned BIn, float epsIn): B(BIn), eps(epsIn){
         root = new Node(NULL, {}, {});
-        Beps =  static_cast<int>(std::floor(pow(B, eps)));
+        Beps =  static_cast<int>(std::ceil(pow(B, eps)));
         blockTransfers = 0;
         N = 0;
-        std::cout << "B^e: " << Beps << std::endl;
-        std::cout << "B - B^e: " << B - Beps << std::endl;
-        printf("B/2-1 = %i\n", static_cast<int>(ceil((double) B/2)-1));
-        printf("Beps/2-1 = %i\n", static_cast<int>(ceil((double) Beps/2)-1));
     }
 
     void printTree(){
         if(root != NULL) root->printBT("", false);
     }
 
-    void gernerateSVG(const std::string& dotFileName, const std::string& svgFile){
+    void generateSVG(const std::string& dotFileName, const std::string& svgFile){
         // Generate DOT file
         generateDotFile(dotFileName);
         // Construct the command to run the dot utility
@@ -58,28 +54,54 @@ class BeTree{
         generateDotNode(root, dotFile);
         dotFile << "}" <<std::endl;
     }
-    
+
     void generateDotNode(Node* node, std::ofstream& dotFile) {
-        // Generates DOT code for each node
+        // Check if node exists
         if (node) {
+            // Generate label for the node
             std::string nodeLabel = "node_" + std::to_string(reinterpret_cast<uintptr_t>(node));
-            dotFile << nodeLabel << "[label = \"<f0>";
-            
-            for (size_t i = 0; i < node->keys.size(); ++i) {
-                dotFile << " |" << node->keys[i] << "|<f" << (i + 1) << ">";
+
+            // Start node definition
+            dotFile << nodeLabel << " [label=<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\">";
+
+            // Write "Buffer" label
+            if (!node->buffer.empty()) {
+                dotFile << "<tr><td><b>Buffer:</b></td>";
+
+                // Write buffer content
+                for (size_t i = 0; i < node->buffer.size(); ++i) {
+                    dotFile << "<td>";
+                    if(node->buffer[i].op == 0) dotFile << "DEL: ";
+                    else dotFile << "INS: ";
+                    dotFile << node->buffer[i].key << "</td>";
+                }
+                dotFile << "</tr>";
             }
 
-            dotFile << "\"];" << std::endl;
+            // Write "Keys" label
+            dotFile << "<tr><td><b>Keys:</b></td>";
 
+            // Write keys of the node
+            for (size_t i = 0; i < node->keys.size(); ++i) {
+                dotFile << "<td>" << node->keys[i] << "</td>";
+            }
+            dotFile << "</tr>";
+
+            // End node definition
+            dotFile << "</table>>, shape=plaintext];" << std::endl;
+
+            // Recursively call generateDotNode for children
             for (size_t i = 0; i < node->children.size(); ++i) {
                 generateDotNode(node->children[i], dotFile);
-                dotFile << "\"" << nodeLabel << "\":f" << i << " -> \"node_" << reinterpret_cast<uintptr_t>(node->children[i]) << "\";" << std::endl;
+                // Generate edges between parent and children
+                dotFile << "\"" << nodeLabel << "\" -> \"node_" << reinterpret_cast<uintptr_t>(node->children[i]) << "\";" << std::endl;
             }
         }
     }
 
-    void fixEmptyRoot(){
-        if(root->keys.size()==0) {
+
+    void fixRootMerge(){
+        if(root->keys.size()==0 && !root->isLeaf()) {
             root->children[0]->buffer.insert(root->children[0]->buffer.begin(), root->buffer.begin(), root->buffer.end());
             root->buffer.clear();
             root = root->children[0];
@@ -97,6 +119,13 @@ class BeTree{
 
     void fixRootSplit(){
         if(root->parent != NULL) root = root->parent;
+        if(!root->isLeaf() && root->children[0]->isLeaf()){
+            for(Node* child : root->children){
+                root->buffer.insert(root->buffer.begin(), child->buffer.begin(), child->buffer.end());
+                child->buffer.clear();                
+            }
+
+        }
     }
 
     void fixLeaf(Node* node){
@@ -120,7 +149,6 @@ class BeTree{
         while(curr && curr->tooSmall(B, Beps) && curr->parent){
             Node* leftSibling = curr->getLeftSibling(); //DISK READ
             Node* rightSibling = curr->getRightSibling(); //DISK READ
-            blockTransfers += 2;
             // Borror from left sibling
             if(leftSibling != curr && leftSibling && leftSibling->bigEnough(B, Beps)) curr->borrowLeft(leftSibling);
             // Borrow from right sibling
@@ -129,15 +157,15 @@ class BeTree{
             else curr->merge();
 
             // Check buffer overflow
-            while(curr->buffer.size() > B-Beps){
-                printf("Flushing cascades after merge!\n");
-                flush(curr, true);
+            curr->annihilateMatching();
+            while(curr->buffer.size() > B-Beps && !curr->isLeaf()){
+                flush(curr);
             }
             curr = curr->parent;
-            //++blockTransfers;
+            blockTransfers += 2;
         }
         // Fixing root case
-        fixEmptyRoot();
+        fixRootMerge();
     }
 
     void apply(Message msg, Node* node){
@@ -148,10 +176,14 @@ class BeTree{
                 if(node->keys[index] == msg.key) {
                     node->keys.erase(node->keys.begin()+index);
                     --N;
+                    //printf("Required %i blocktransfers\n", blockTransfers);
                 }
                 else {
+                    // printTree();
                     printf("Key %i not in tree\n", msg.key);
-                    exit(0);
+                    node->printKeys();
+                    node->parent->printKeys();
+                    //exit(0);
                 }
                 break;
             case INSERT:
@@ -162,21 +194,23 @@ class BeTree{
         }
     }
 
-    void flush(Node* node, bool cascades=false){
+    void flush(Node* node){
         // Flushes at least O(B^(1-eps)) updates (pigeonhole principle)
         int childIndex = node->findFlushingChild();
         Node* child = node->children[childIndex];
         ++blockTransfers;
+        bool found = false;
         for(auto it = node->buffer.begin(); it != node->buffer.end();){
-            if(node->findChild(it->key) == childIndex){
+            if(node->findChild(it->key) == child->myIndex()){
                 Message msg = *it;
                 it = node->buffer.erase(it);
                 if(child->isLeaf()) {
                     apply(msg, child);
                     fixLeaf(child);
-                    // Reset variables (in case of merge)
+                    // Reset variables (in case of merge/split)
                     it = node->buffer.begin();
                     childIndex = node->findChild(child->keys[0]);
+                    child = node->children[childIndex];
                 }
                 else {
                     auto it2 = std::upper_bound(child->buffer.begin(), child->buffer.end(), msg);
@@ -186,22 +220,22 @@ class BeTree{
         }
         if(!child->isLeaf()) child->annihilateMatching(); // Annihilate matching ins/del operations
         // Flush child if needed
-        while(child->buffer.size() > B-Beps) flush(child, true);
-        //if(!cascades) blockTransfers=0;
-
+        while(child->buffer.size() > B-Beps) flush(child);
     }
 
     int insertUpdate(int key, int op){
         Message msg{key, op};
         // Insert in the root buffer
-        if(root->isLeaf()) {
-            apply(msg, root); // If root is a leaf -> instantly apply update
-            fixLeaf(root);
-        }
-        else{ // If root is not a leaf -> add msg to its buffer
-            auto it = std::upper_bound(root->buffer.begin(), root->buffer.end(), msg);
-            root->buffer.insert(it, msg);
-            while(root->buffer.size() > B) flush(root);         
+        auto it = std::upper_bound(root->buffer.begin(), root->buffer.end(), msg);
+        root->buffer.insert(it, msg);
+        root->annihilateMatching();
+        while(root->buffer.size() > B-Beps) {
+            if(root->isLeaf()){ // Apply update if root is a leaf
+                Message msg = root->buffer.front();
+                root->buffer.erase(root->buffer.begin());
+                apply(msg, root);
+                fixLeaf(root);
+            } else flush(root);
         }
         int tr = blockTransfers;
         blockTransfers = 0;

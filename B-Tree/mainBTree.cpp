@@ -78,7 +78,7 @@ void testCase7(){
     t.remove(3);
     for(int i=10; i<= 300; ++i) t.remove(i);
     //t.printTree();
-    t.gernerateSVG("btree.dot", "btree.svg");
+    t.generateSVG("btree.dot", "btree.svg");
 }
 
 void testCase8(){
@@ -144,8 +144,8 @@ void varB(){
             blockTransfers.push_back(block);
         }
 
-        for(int k : blockTransfers) printf("%i, ", k);
-        printf("\n");
+        // for(int k : blockTransfers) printf("%i, ", k);
+        // printf("\n");
 
         // Create a temporary file to store the data
         const std::string name = "data" + std::to_string(b) + ".dat";
@@ -174,15 +174,12 @@ void varB(){
 }
 
 void ins1000(){
-    BTree t = BTree(10);
+    BTree t = BTree(40);
     std::vector<int> blockTransfers;
     for(int i=1; i<=1000; ++i){
         int block = t.insert(i);
         blockTransfers.push_back(block);
     }
-
-    for(int k : blockTransfers) printf("%i, ", k);
-    printf("\n");
 
     // Create a temporary file to store the data
     const std::string name = "data" + std::to_string(10) + ".dat";
@@ -196,6 +193,155 @@ void ins1000(){
     file.close();
 }
 
+void del1000(){
+    BTree t = BTree(40);
+    std::vector<int> blockTransfers;
+    for(int i=1; i<=1000; ++i) t.insert(i);
+    for(int i=1; i<=1000; ++i){
+        int block = t.remove(i);
+        blockTransfers.push_back(block);
+    }
+
+    // Create a temporary file to store the data
+    const std::string name = "data_del" + std::to_string(40) + ".dat";
+    std::ofstream file(name);
+
+    // Write the data to the temporary file
+    for (int j = 0; j < blockTransfers.size(); ++j) {
+        //fprintf(file, "%i %i\n", j + 1, blockTransfers[j]);
+        file << j+1 << " " << blockTransfers[j] << "\n";
+    }
+    file.close();
+}
+
+void drawTree(){
+    BTree t = BTree(5);
+    for(int i=1; i<=20; ++i) t.insert(i);
+    t.printTree();
+    t.generateSVG("btree5.dot", "btree5.svg");
+}
+
+void ins10Mill(){
+    BTree t = BTree(50);
+    std::vector<int> blockTransfers;
+    int n = pow(10, 7);
+    for(int i=1; i<=n; ++i){
+        int block = t.insert(i);
+        blockTransfers.push_back(block);
+    }
+
+    // Create a temporary file to store the data
+    const std::string name = "data_10mil_" + std::to_string(50) + ".dat";
+    std::ofstream file(name);
+
+    // Write the data to the temporary file
+    for (int j = 0; j < blockTransfers.size(); ++j) {
+        //fprintf(file, "%i %i\n", j + 1, blockTransfers[j]);
+        file << j+1 << " " << blockTransfers[j] << "\n";
+    }
+    file.close();
+}
+
+void del10Mill(){
+    BTree t = BTree(50);
+    std::vector<int> blockTransfers;
+    int n = pow(10, 7);
+    for(int i=1; i<=n; ++i) t.insert(i);
+    for(int i=1; i<=n; ++i){
+        int block = t.remove(i);
+        blockTransfers.push_back(block);
+    }
+
+    // Create a temporary file to store the data
+    const std::string name = "data_10mil_remove_" + std::to_string(50) + ".dat";
+    std::ofstream file(name);
+
+    // Write the data to the temporary file
+    for (int j = 0; j < blockTransfers.size(); ++j) {
+        //fprintf(file, "%i %i\n", j + 1, blockTransfers[j]);
+        file << j+1 << " " << blockTransfers[j] << "\n";
+    }
+    file.close();
+}
+
+void varBIns10Mil(){
+    for(float b=100; b<=1000; b += 300){
+        std::vector<int> blockTransfers;
+        int n = pow(10, 7);
+        BTree t = BTree(b);
+        for(int i=1; i<=n; i++) blockTransfers.push_back(t.insert(i));
+        // Create a file to store the data
+        const std::string name = "data_ins_10mil_" + std::to_string(b) + ".dat";
+        std::ofstream file(name);
+
+        // Write the data to the temporary file
+        for (int j = 0; j < blockTransfers.size(); ++j) {
+            //fprintf(file, "%i %i\n", j + 1, blockTransfers[j]);
+            file << j+1 << " " << blockTransfers[j] << "\n";
+        }
+    }
+}
+
+void varBDel10Mil(){
+    for(float b=100; b<=1000; b += 300){
+        std::vector<int> blockTransfers;
+        int n = pow(10, 7);
+        BTree t = BTree(b);
+        for(int i=1; i<=n; i++) t.insert(i);
+        for(int i=1; i<=n; i++) blockTransfers.push_back(t.remove(i));
+        // Create a file to store the data
+        const std::string name = "data_del_10mil_" + std::to_string(b) + ".dat";
+        std::ofstream file(name);
+
+        // Write the data to the temporary file
+        for (int j = 0; j < blockTransfers.size(); ++j) {
+            //fprintf(file, "%i %i\n", j + 1, blockTransfers[j]);
+            file << j+1 << " " << blockTransfers[j] << "\n";
+        }
+    }
+}
+
+void flushCasc2(){
+    BTree t = BTree(50);
+    std::vector<int> blockTransfers;
+    int n = pow(10, 7);
+    for(int i=1; i<=n; ++i) t.insert(i);
+    for(int i=1; i<=n; i+=2) blockTransfers.push_back(t.remove(i)); // Remove odd numbers
+    for(int i=2; i<=n; i+=2) blockTransfers.push_back(t.remove(i)); // Remove even numbers
+
+    // Create a temporary file to store the data
+    const std::string name = "data_flushCasc2_" + std::to_string(50) + ".dat";
+    std::ofstream file(name);
+
+    // Write the data to the temporary file
+    for (int j = 0; j < blockTransfers.size(); ++j) {
+        //fprintf(file, "%i %i\n", j + 1, blockTransfers[j]);
+        file << j+1 << " " << blockTransfers[j] << "\n";
+    }
+    file.close();
+}
+
+void varBFlushCasc2(){
+    for(int b=100; b<=1000; b += 300){
+        BTree t = BTree(b);
+        std::vector<int> blockTransfers;
+        int n = pow(10, 7);
+        for(int i=1; i<=n; i++) t.insert(i);
+        //t.printTree();
+        for(int i=1; i<n; i+=2) blockTransfers.push_back(t.remove(i)); // Remove odd numbers
+        for(int i=2; i<n; i+=2) blockTransfers.push_back(t.remove(i)); // Remove even numbers
+        //t.printTree();
+        // Create a temporary file to store the data
+        const std::string name = "data_flushCasc2_VarB_" + std::to_string(b) + ".dat";
+        std::ofstream file(name);
+
+        // Write the data to the temporary file
+        for (int j = 0; j < blockTransfers.size(); ++j) {
+            //fprintf(file, "%i %i\n", j + 1, blockTransfers[j]);
+            file << j+1 << " " << blockTransfers[j] << "\n";
+        }
+    }
+}
 
 int main(int argc, char** argv){
     // std::cout << "------------------------------TEST CASE 1----------------------------\n";
@@ -224,9 +370,17 @@ int main(int argc, char** argv){
     // testCase12();
     // std::cout << "------------------------------TEST CASE 13----------------------------\n";
     // testCase13();  
-    printf("----------------------------------Testing Different Values of B----------------------------------\n");
-    varB();
-    ins1000();
+    // printf("----------------------------------Testing Different Values of B----------------------------------\n");
+    // varB();
+    // ins1000();
+    // del1000();
+    // drawTree();
+    // ins10Mill();
+    // del10Mill();
+    // flushCasc2();
+    // varBIns10Mil();
+    // printf("VAR B DELETE 10 Million\n");
+    // varBDel10Mil();
 
 
     return 0;

@@ -78,6 +78,8 @@ class Node{
 
     }
 
+    int logB(int B, int a) {return log2(a)/log2(B);}
+
     void printKeys(){ for(int key: keys) std::cout << key << " ";
                         std::cout << std::endl;}
     void printMaxVect(){ for(int size: maxVect) std::cout << size << " ";
@@ -132,7 +134,6 @@ class Node{
     }
 
     int findFlushingChild(){
-        if(keys.empty()) return 0;
         int resArray[children.size()] = {0};
         for(Message msg : buffer){
             ++resArray[findChild(msg.key)];
@@ -146,6 +147,10 @@ class Node{
             }
         }
         return resIndex;
+    }
+
+    bool overfullBuffer(int B, int Bdelta, int Nestimate){
+        return ((!isMicroRoot() && buffer.size() > B/Bdelta) || isMicroRoot() && buffer.size() > (B/Bdelta)*logB(B, Nestimate));
     }
 
     Node* getLeftSibling(){

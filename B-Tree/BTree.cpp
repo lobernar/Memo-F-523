@@ -13,14 +13,13 @@ class BTree{
         B = BIn;
         root = NULL;
         N = 0;
-        printf("B = %i\n", B);
     }
 
     void printTree(){
         if(root != NULL) root->printBT("", false);
     }
 
-    void gernerateSVG(const std::string& dotFileName, const std::string& svgFile){
+    void generateSVG(const std::string& dotFileName, const std::string& svgFile){
         // Generate DOT file
         generateDotFile(dotFileName);
         // Construct the command to run the dot utility
@@ -104,7 +103,6 @@ class BTree{
             index = curr->findChild(key);
         }
         curr->insertKey(key, index); // Will have reached a leaf here
-        //printf("Inserting in a B-tree of height %f with %i elements and B = %i required %i block transfers\n", ceil((double)log2(N)/log2(B)), N, B, blockTransfers);
         ++N;
         return blockTransfers;
     }
@@ -154,21 +152,18 @@ class BTree{
             keyIndex = curr->findChild(key);
             ++blockTransfers;
         }
-        // Reached node
+        // Reached node containing key to delete
         if(curr->isLeaf() && curr->keys[keyIndex] == key){ // Leaf node case
-            //printf("Found key %i in LEAF node\n", key);
             curr->keys.erase(curr->keys.begin()+keyIndex);
             fixSmall(curr, blockTransfers);
         } else if(curr->keys[keyIndex] == key){ // Internal node case (Replace with predecessor key)
-            Node* predecessor = curr->getPredecessor(keyIndex);
-            ++blockTransfers;
+            Node* predecessor = curr->getPredecessor(keyIndex, blockTransfers);
             int predKey = predecessor->keys[predecessor->keys.size()-1];
             curr->keys[keyIndex] = predKey;
             predecessor->keys.pop_back();
             fixSmall(predecessor, blockTransfers);
         } else{
             printf("Key %i not in tree\n", key);
-            printTree();
             exit(0);
         }
         return blockTransfers;
@@ -198,7 +193,7 @@ class BTree{
 
     std::vector<int> range(int x, int y){
         std::vector<int> predecessors{};
-        int pred = predecessor(y+1);
+        int pred = predecessor(y);
         while(pred >= x){
             predecessors.insert(predecessors.begin(), pred);
             pred = predecessor(pred);
